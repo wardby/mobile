@@ -1,0 +1,46 @@
+# AGENTS.md
+
+Rules for every change to this repository. Every change is made by a coding agent from a GitHub issue.
+
+## What the app is
+
+The wardby mobile app: a React Native / Expo app (TypeScript) for iOS and Android that gives wardby admins a read-only, live view of their own wardby server (runs, run details, spend, push alerts). It talks only to the wardby server the user chooses at sign-in.
+
+## Expo has changed — do not trust your training data
+
+Read the `expo` major version from `package.json` and use the matching versioned docs, `https://docs.expo.dev/versions/v<major>.0.0/`, and `https://docs.expo.dev/llms.txt`. Never answer Expo or React Native API questions from memory.
+
+## Dependencies
+
+Use `npx expo install <pkg>` for every dependency. Never use `npm install <pkg>`.
+
+## Native code
+
+Never create or edit `ios/` or `android/` (Continuous Native Generation). Configure native behaviour in `app.config.ts` and config plugins.
+
+## Layout
+
+- `app/`: routes (Expo Router).
+- `src/api/`: the only code that talks to the network.
+- `src/`: hooks and components.
+- `app.identity.ts`: the only place that names the app (name, slug, scheme, bundle id, package).
+
+## Definition of done (every ticket)
+
+- `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test` and `npm run export` all pass.
+- Every new hook and screen has tests.
+- Network code is tested against recorded fixtures, never a live server.
+- The PR body says `Resolves #<issue>` and copies the ticket's acceptance checklist with each item ticked.
+- The PR includes a short "How to try it" section.
+
+## Never
+
+- Never change anything under `.github/` (CI is maintained by the repository owner).
+- Never put secrets or tokens in the repo or tests.
+- Never hardcode a server host.
+- Never add analytics, crash reporting, or anything that sends data anywhere except the user's own wardby server.
+- Never add new top-level dependencies the ticket didn't ask for without saying why in the PR.
+
+## Accessibility
+
+Every control has an accessible label. Every control a test touches has a `testID`.
