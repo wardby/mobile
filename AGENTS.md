@@ -80,3 +80,9 @@ vendored contract.
 - Nothing logs tokens.
 - Auth code lives in `src/auth/`.
 - Network calls stay in `src/api/` and `src/auth/` only.
+
+## Live data
+
+- Screens get runs only from `useLiveGraph()`, never by polling. `LiveGraphProvider` (in the signed-in tabs layout) keeps one event stream for the whole app.
+- Event-stream code lives in `src/live/`; it is the only network code outside `src/api/` and `src/auth/`.
+- Open the event stream first, then load the graph, then apply events on top. On every `resync` and after every reconnect, refetch the graph instead of trying to resume (there is no replay).

@@ -10,8 +10,13 @@ import Runs from '../app/(tabs)/index';
 import Spend from '../app/(tabs)/spend';
 import Settings from '../app/(tabs)/settings';
 import { useSession } from '../src/auth/session';
+import { openEventStream } from '../src/live/stream';
 
-jest.mock('../src/auth/session', () => ({ useSession: jest.fn() }));
+jest.mock('../src/auth/session', () => ({
+  useSession: jest.fn(),
+  session: { getAccessToken: jest.fn(), signOut: jest.fn() },
+}));
+jest.mock('../src/live/stream', () => ({ openEventStream: jest.fn() }));
 jest.mock('expo-constants', () => ({
   __esModule: true,
   default: { expoConfig: { version: '1.0.0' } },
@@ -112,4 +117,16 @@ test('Settings confirmation supports Cancel and signs out to Connect on confirm'
   expect(screen.getByTestId('connect-host')).toBeTruthy();
   expect(router.canGoBack()).toBe(false);
   alert.mockRestore();
+});
+test('signed-in tabs share one live event stream that closes on sign-out', async () => {
+  const result = await render(app());
+  await fireEvent.press(screen.getByTestId('tab-spend'));
+  expect(openEventStream).toHaveBeenCalledTimes(1);
+  const { baseUrl, signal } = (openEventStream as jest.Mock).mock.calls[0][0];
+  expect(baseUrl).toBe('https://server.example');
+  expect(signal.aborted).toBe(false);
+  auth = { ...auth, status: 'signedOut', host: null };
+  await result.rerender(app());
+  expect(signal.aborted).toBe(true);
+  expect(openEventStream).toHaveBeenCalledTimes(1);
 });
