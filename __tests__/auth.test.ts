@@ -3,6 +3,7 @@ import * as AuthSession from 'expo-auth-session';
 import fixtures from './fixtures/oauth.json';
 import { discover, normalizeHost } from '../src/auth/discovery';
 import { register } from '../src/auth/register';
+import { AuthError } from '../src/auth/errors';
 import { act, renderHook } from '@testing-library/react-native';
 import { createSession, session, useSession } from '../src/auth/session';
 
@@ -97,6 +98,22 @@ test('maps disabled mobile registration', async () => {
   const c = await config();
   reply({ error: 'invalid_redirect_uri', error_description: 'mobile_disabled' }, 400);
   await expect(register(c)).rejects.toMatchObject({ code: 'mobile_disabled' });
+});
+test('maps registration network failures to unreachable', async () => {
+  const c = await config();
+  fetchMock.mockRejectedValueOnce(new Error('Network failure'));
+  await expect(register(c)).rejects.toEqual(new AuthError('unreachable'));
+  expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+});
+test('maps registration JSON parse failures to failed', async () => {
+  const c = await config();
+  fetchMock.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: jest.fn().mockRejectedValueOnce(new SyntaxError('Invalid JSON')),
+  });
+  await expect(register(c)).rejects.toEqual(new AuthError('failed'));
+  expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
 });
 test('code exchange stores tokens and requests PKCE scopes and resource', async () => {
   const s = await signedIn();
