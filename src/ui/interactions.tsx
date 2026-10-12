@@ -22,8 +22,8 @@ function Control({ style, disabled, children, ...props }: PressableProps) {
       android_ripple={{ color: colors.tint }}
       style={(state) => [
         styles.target,
-        typeof style === 'function' ? style(state) : style,
         { opacity: disabled ? 0.5 : state.pressed ? 0.6 : 1 },
+        typeof style === 'function' ? style(state) : style,
       ]}
     >
       {children}

@@ -97,6 +97,18 @@ test('text buttons preserve selected and disabled states and omit disclosure for
   expect(press).not.toHaveBeenCalled();
 });
 
+test.each([false, true])('caller opacity wins when disabled is %s', async (disabled) => {
+  await render(
+    <TextButton testID="opacity" label="Action" disabled={disabled} style={{ opacity: 0.3 }} />,
+  );
+  expect(screen.getByTestId('opacity')).toHaveStyle({ opacity: 0.3 });
+  if (!disabled) {
+    const event = { persist: jest.fn(), nativeEvent: { pageX: 0, pageY: 0 } };
+    await fireEvent(screen.getByTestId('opacity'), 'responderGrant', event);
+    expect(screen.getByTestId('opacity')).toHaveStyle({ opacity: 0.3 });
+  }
+});
+
 function luminance(hex: string) {
   const values = hex
     .slice(1)
