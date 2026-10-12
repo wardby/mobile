@@ -36,11 +36,21 @@ Never create or edit `ios/` or `android/` (Continuous Native Generation). Config
 
 ## Definition of done (every ticket)
 
-- `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test` and `npm run export` all pass.
+- `npm run typecheck`, `npm run lint`, `npm run format:check` and `npm test` pass.
+- The app bundles: run `npm run export -- --platform web` in the coding sandbox. CI's `ci` check runs the full `npm run export` (iOS, Android and web) on every pull request.
 - Every new hook and screen has tests.
 - Network code is tested against recorded fixtures, never a live server.
 - The PR body says `Resolves #<issue>` and copies the ticket's acceptance checklist with each item ticked.
 - The PR includes a short "How to try it" section.
+
+### When to run the full export
+
+Run the full `npm run export` locally (not just web) when the change:
+
+- touches `app.config.ts` or `app.identity.ts`;
+- adds or changes a platform-specific file (`*.ios.*`, `*.android.*`, `*.native.*`);
+- adds or upgrades a dependency (any `package.json` change);
+- fixes a `ci` failure in the export step.
 
 ## Never
 
