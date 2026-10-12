@@ -1,7 +1,8 @@
 import { marked, type Token, type Tokens } from 'marked';
 import { useMemo, useState, type ReactNode } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import { styles, useColors } from '../navigation/styles';
+import { TextButton } from '../ui/interactions';
 
 function isSafeLink(href: string): boolean {
   try {
@@ -17,6 +18,7 @@ export function MarkdownResult({ text }: { text: string }) {
   const tokens = useMemo(() => marked.lexer(text), [text]);
   const [expanded, setExpanded] = useState(false);
   const [height, setHeight] = useState(0);
+  const [pressedLink, setPressedLink] = useState<string | null>(null);
   const textStyle = [styles.text, { color: colors.text }];
   function renderTokens(items: Token[] = [], path = 'result'): ReactNode {
     return items.map((token, index) => {
@@ -102,12 +104,15 @@ export function MarkdownResult({ text }: { text: string }) {
               testID={`markdown-link-${key}`}
               accessibilityRole="link"
               accessibilityLabel={`${token.text}, opens in browser`}
-              style={local.link}
+              accessibilityHint="Opens in the browser"
+              style={[local.link, { color: colors.tint, opacity: pressedLink === key ? 0.6 : 1 }]}
+              onPressIn={() => setPressedLink(key)}
+              onPressOut={() => setPressedLink(null)}
               onPress={() => {
                 void Linking.openURL(token.href).catch(() => {});
               }}
             >
-              {renderTokens(token.tokens, key)}
+              {renderTokens(token.tokens, key)} ↗
             </Text>
           );
         case 'image':
@@ -153,15 +158,12 @@ export function MarkdownResult({ text }: { text: string }) {
         </View>
       </View>
       {height > 144 && (
-        <Pressable
+        <TextButton
           testID="run-detail-result-toggle"
-          accessibilityRole="button"
-          accessibilityLabel={expanded ? 'Show less' : 'Show more'}
-          accessibilityState={{ expanded }}
+          label={expanded ? 'Show less' : 'Show more'}
+          expanded={expanded}
           onPress={() => setExpanded(!expanded)}
-        >
-          <Text style={textStyle}>{expanded ? 'Show less' : 'Show more'}</Text>
-        </Pressable>
+        />
       )}
     </>
   );

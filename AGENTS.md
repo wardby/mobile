@@ -92,7 +92,7 @@ vendored contract.
 
 ## UI patterns
 
-- Use `ExternalLink` from `src/ui/interactions.tsx` for anything that opens the browser; it supplies the accent, external marker and browser accessibility hint. Markdown result links (#28) must use this same component.
+- Use `ExternalLink` from `src/ui/interactions.tsx` for anything that opens the browser; it supplies the accent, external marker and browser accessibility hint. Inline Markdown result links (#28) are nested Text and cannot contain the Pressable used by ExternalLink; they use Text with the same accent, ↗ marker, browser hint and pressed opacity, while retaining URL vetting.
 - Use `NavigationRow` for full-row in-app navigation; only in-app navigation uses a trailing `›`.
 - Use `TextButton` for inline actions, filters and buttons. Pass `expanded` for disclosures to get the state and flipping indicator. Keep existing labels and testIDs.
 - Use `useColors().tint` only for interactive elements. The shared controls provide minimum 44×44 targets, pressed opacity and Android ripple; retain these when adding styles.

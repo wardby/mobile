@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Linking } from 'react-native';
 import RunDetail from '../../app/runs/[id]';
 import fixture from '../../src/api/__fixtures__/run-detail.json';
@@ -98,12 +98,14 @@ test('loads finished coding detail, all blocks, PR link and expandable plain res
   });
   await fireEvent.press(screen.getByTestId('run-detail-result-toggle'));
   expect(screen.getByTestId('run-detail-result-toggle')).toHaveProp('accessibilityState', {
+    disabled: false,
     expanded: true,
   });
   expect(screen.getByTestId('run-detail-result')).toHaveTextContent(new RegExp('seven'));
   await fireEvent.press(screen.getByTestId('run-detail-result-toggle'));
   expect(screen.getByTestId('run-detail-result-viewport')).toHaveStyle({ maxHeight: 144 });
   expect(screen.getByTestId('run-detail-result-toggle')).toHaveProp('accessibilityState', {
+    disabled: false,
     expanded: false,
   });
 });
@@ -339,5 +341,58 @@ test.each(['light', 'dark'])(
     expect(open).toHaveBeenCalledWith('https://example.test/docs');
     expect(mockPush).not.toHaveBeenCalled();
     expect(screen.queryByTestId('run-detail-result-toggle')).toBeNull();
+  },
+);
+
+test('result toggle uses an accent disclosure with a 44pt target and pressed feedback', async () => {
+  await setup();
+  await fireEvent(screen.getByTestId('run-detail-result-content'), 'layout', {
+    nativeEvent: { layout: { height: 200 } },
+  });
+  const toggle = screen.getByTestId('run-detail-result-toggle');
+  expect(toggle).toHaveStyle({ minHeight: 44, minWidth: 44 });
+  expect(screen.getByText('Show more')).toHaveStyle({ color: '#0066cc' });
+  expect(toggle).toHaveTextContent(/▾/);
+  expect(toggle).toHaveProp('accessibilityState', { disabled: false, expanded: false });
+  const event = { persist: jest.fn(), nativeEvent: { pageX: 0, pageY: 0 } };
+  await fireEvent(toggle, 'responderGrant', event);
+  expect(toggle).toHaveStyle({ opacity: 0.6 });
+  await fireEvent(toggle, 'responderTerminate', event);
+  await waitFor(() => expect(toggle).toHaveStyle({ opacity: 1 }));
+  await fireEvent.press(toggle);
+  expect(toggle).toHaveProp('accessibilityLabel', 'Show less');
+  expect(toggle).toHaveTextContent(/▴/);
+  expect(toggle).toHaveProp('accessibilityState', { disabled: false, expanded: true });
+  expect(screen.getByText('Show less')).toHaveStyle({ color: '#0066cc' });
+  await fireEvent.press(toggle);
+  expect(toggle).toHaveProp('accessibilityLabel', 'Show more');
+  expect(toggle).toHaveTextContent(/▾/);
+  expect(toggle).toHaveProp('accessibilityState', { disabled: false, expanded: false });
+});
+
+test.each(['#0066cc', '#66b2ff'])(
+  'inline markdown link uses accent %s and pressed feedback',
+  async (tint) => {
+    jest.spyOn(palette, 'useColors').mockReturnValue({
+      background: '#ffffff',
+      text: '#000000',
+      muted: '#888888',
+      destructive: '#ff3b30',
+      tint,
+    });
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    detail = { ...detail, finalText: 'See [**Read more**](https://example.test/docs) here.' };
+    await setup();
+    const link = screen.getByTestId('markdown-link-result-0-1');
+    expect(link).toHaveStyle({ color: tint });
+    expect(link).toHaveTextContent(/Read more ↗/);
+    expect(link).toHaveProp('accessibilityRole', 'link');
+    expect(link).toHaveProp('accessibilityHint', 'Opens in the browser');
+    await fireEvent(link, 'pressIn');
+    expect(link).toHaveStyle({ opacity: 0.6 });
+    await fireEvent(link, 'pressOut');
+    expect(link).toHaveStyle({ opacity: 1 });
+    await fireEvent.press(link);
+    expect(open).toHaveBeenCalledWith('https://example.test/docs');
   },
 );
