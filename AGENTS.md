@@ -14,6 +14,15 @@ Read the `expo` major version from `package.json` and use the matching versioned
 
 Use `npx expo install <pkg>` for every dependency. Never use `npm install <pkg>`.
 
+## Installing dependencies
+
+- Run `npm ci` once at the start of a task.
+- Don't run `npm install` or `npm ci` again unless `package.json` or `package-lock.json` changed in this task.
+- To add a dependency, use one `npx expo install <pkg>` (add `-- --save-dev` for a dev dependency), and don't reinstall afterwards.
+- Never run two install commands at the same time.
+- Scripts must never install dependencies or download tools at run time. Use installed binaries directly or `npx --no-install`; any script tool must be a devDependency.
+- `api:sync` may fetch the pinned CLI tarball with `npm pack`, but must leave `node_modules` and `package-lock.json` untouched.
+
 ## Native code
 
 Never create or edit `ios/` or `android/` (Continuous Native Generation). Configure native behaviour in `app.config.ts` and config plugins.

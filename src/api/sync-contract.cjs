@@ -11,8 +11,15 @@ try {
   const packed = JSON.parse(
     execFileSync(
       'npm',
-      ['pack', `@wardby/cli@${CLI_VERSION}`, '--json', '--pack-destination', temporary],
-      { encoding: 'utf8' },
+      [
+        'pack',
+        `@wardby/cli@${CLI_VERSION}`,
+        '--json',
+        '--ignore-scripts',
+        '--pack-destination',
+        temporary,
+      ],
+      { cwd: temporary, encoding: 'utf8' },
     ),
   );
   execFileSync('tar', [
