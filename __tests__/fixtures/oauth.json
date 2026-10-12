@@ -1,0 +1,15 @@
+{
+  "resource": {
+    "resource": "https://server.example/mcp",
+    "authorization_servers": ["https://server.example"]
+  },
+  "metadata": {
+    "authorization_endpoint": "https://server.example/authorize",
+    "token_endpoint": "https://server.example/token",
+    "registration_endpoint": "https://server.example/register",
+    "revocation_endpoint": "https://server.example/revoke",
+    "scopes_supported": ["admin:view", "offline_access"]
+  },
+  "client": { "client_id": "test-client" },
+  "tokens": { "access_token": "fake-access", "refresh_token": "fake-refresh", "expires_in": 600 }
+}

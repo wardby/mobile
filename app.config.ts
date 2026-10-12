@@ -11,7 +11,7 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'automatic',
   ios: { bundleIdentifier: identity.iosBundleId },
   android: { package: identity.androidPackage },
-  plugins: ['expo-router', 'expo-status-bar'],
+  plugins: ['expo-router', 'expo-status-bar', 'expo-secure-store', 'expo-web-browser'],
   experiments: { typedRoutes: true },
   extra: identity.easProjectId ? { eas: { projectId: identity.easProjectId } } : {},
 };

@@ -30,7 +30,7 @@ Never create or edit `ios/` or `android/` (Continuous Native Generation). Config
 ## Layout
 
 - `app/`: routes (Expo Router).
-- `src/api/`: the only code that talks to the network.
+- `src/api/` and `src/auth/`: the only code that talks to the network or calls `fetch`.
 - `src/`: hooks and components.
 - `app.identity.ts`: the only place that names the app (name, slug, scheme, bundle id, package).
 
@@ -63,3 +63,10 @@ these files by hand. Commit both outputs together. Bump `CLI_VERSION` in
 `src/api/sync-contract.cjs` to pick up API changes, then refresh the fixtures and
 run all checks. The schema freshness test checks the generated types against the
 vendored contract.
+
+## Auth
+
+- Tokens live only in `expo-secure-store`.
+- Nothing logs tokens.
+- Auth code lives in `src/auth/`.
+- Network calls stay in `src/api/` and `src/auth/` only.
