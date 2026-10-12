@@ -82,6 +82,42 @@ test('maps unreachable servers', async () => {
   fetchMock.mockRejectedValueOnce(new Error());
   await expect(discover('server.example')).rejects.toMatchObject({ code: 'unreachable' });
 });
+test('issuers without a path fetch metadata once from the origin root', async () => {
+  await config();
+  expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+    'https://server.example/.well-known/oauth-protected-resource',
+    'https://server.example/.well-known/oauth-authorization-server',
+  ]);
+});
+test('issuers with a path use RFC 8414 metadata when served', async () => {
+  reply(fixtures.pathResource);
+  reply(fixtures.metadata);
+  expect((await discover('server.example')).resource).toBe(fixtures.pathResource.resource);
+  expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+    'https://server.example/.well-known/oauth-protected-resource',
+    'https://server.example/.well-known/oauth-authorization-server/mcp',
+  ]);
+});
+test.each([
+  ['a 404', () => reply({}, 404)],
+  ['an invalid body', () => reply(null)],
+])('issuers with a path fall back to the origin root after %s', async (_name, first) => {
+  reply(fixtures.pathResource);
+  first();
+  reply(fixtures.metadata);
+  expect((await discover('server.example')).scopes).toContain('admin:view');
+  expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+    'https://server.example/.well-known/oauth-protected-resource',
+    'https://server.example/.well-known/oauth-authorization-server/mcp',
+    'https://server.example/.well-known/oauth-authorization-server',
+  ]);
+});
+test('issuer metadata network failures are unreachable without fallback', async () => {
+  reply(fixtures.pathResource);
+  fetchMock.mockRejectedValueOnce(new Error());
+  await expect(discover('server.example')).rejects.toMatchObject({ code: 'unreachable' });
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
 test('registers a public client and caches per host', async () => {
   const c = await config();
   reply(fixtures.client);
