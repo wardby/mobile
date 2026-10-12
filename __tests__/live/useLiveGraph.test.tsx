@@ -175,6 +175,19 @@ test('resync refetches and replaces the graph', async () => {
   expect(options.client.getGraph).toHaveBeenCalledTimes(2);
   expect(result.current.graph).toEqual(next);
 });
+test('a failed graph load reconnects with back-off and loads the graph again', async () => {
+  (options.client.getGraph as jest.Mock).mockRejectedValueOnce(new TypeError('Network failed'));
+  const { result } = await live();
+  expect(result.current.graph).toBeNull();
+  expect(result.current.status).toBe('reconnecting');
+  expect(signals[0].aborted).toBe(true);
+  await advance(2999);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  await advance(1);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(options.client.getGraph).toHaveBeenCalledTimes(2);
+  expect(result.current.graph).toEqual(graphFixture);
+});
 test('hello false then status true gives reconnecting then live', async () => {
   const { result } = await mount();
   latest().push(frame('hello', { connected: false }));

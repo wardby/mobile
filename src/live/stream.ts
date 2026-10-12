@@ -34,8 +34,12 @@ export async function openEventStream(options: {
   try {
     const token = await options.getAccessToken();
     if (signal.aborted) return;
-    const headers: Record<string, string> = { Accept: 'text/event-stream' };
-    if (token) headers.Authorization = `Bearer ${token}`;
+    // No token (e.g. a failed refresh) is a retryable error, not a 401.
+    if (!token) throw new ApiError(0, 'no_token');
+    const headers: Record<string, string> = {
+      Accept: 'text/event-stream',
+      Authorization: `Bearer ${token}`,
+    };
     const response = await fetch(new URL('/admin/api/events', options.baseUrl).toString(), {
       method: 'GET',
       headers,

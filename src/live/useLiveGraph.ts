@@ -115,16 +115,18 @@ export function createLiveGraph(options: LiveGraphOptions) {
     if (!running || paused) return;
     const current = ++load;
     buffered ??= [];
-    let graph: Graph | null = null;
+    let graph: Graph;
     try {
       graph = await options.client.getGraph();
     } catch {
-      // Keep the last graph; events still apply on top of it.
+      // Keep the last graph and retry with back-off; the reconnect refetches.
+      if (current === load && running && !paused) reconnect();
+      return;
     }
     if (current !== load) return;
     const events = buffered ?? [];
     buffered = null;
-    if (graph) update({ graph, lastUpdated: new Date() });
+    update({ graph, lastUpdated: new Date() });
     events.forEach(apply);
   }
   function handle(frame: SseFrame) {

@@ -66,6 +66,23 @@ test('a 401 calls onUnauthorized and not onError', async () => {
   expect(handlers.onOpen).not.toHaveBeenCalled();
   expect(handlers.onError).not.toHaveBeenCalled();
 });
+test('a missing token calls onError without sending the request', async () => {
+  const fetch = jest.fn();
+  const onError = jest.fn();
+  const onUnauthorized = jest.fn();
+  await openEventStream({
+    baseUrl,
+    getAccessToken: async () => null,
+    fetch,
+    signal: new AbortController().signal,
+    onFrame: jest.fn(),
+    onError,
+    onUnauthorized,
+  });
+  expect(fetch).not.toHaveBeenCalled();
+  expect(onError).toHaveBeenCalledTimes(1);
+  expect(onUnauthorized).not.toHaveBeenCalled();
+});
 test('another HTTP failure calls onError', async () => {
   const { handlers, done } = setup({ ok: false, status: 500 });
   await done;
