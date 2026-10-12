@@ -12,6 +12,13 @@ import Settings from '../app/(tabs)/settings';
 import { useSession } from '../src/auth/session';
 import { openEventStream } from '../src/live/stream';
 
+jest.mock('@expo/vector-icons/Ionicons', () => {
+  const { Text } = jest.requireActual('react-native');
+  return {
+    __esModule: true,
+    default: ({ name, ...props }: { name: string }) => <Text {...props}>{name}</Text>,
+  };
+});
 jest.mock('../src/auth/session', () => ({
   useSession: jest.fn(),
   session: { getAccessToken: jest.fn(), signOut: jest.fn() },
@@ -130,3 +137,37 @@ test('signed-in tabs share one live event stream that closes on sign-out', async
   expect(signal.aborted).toBe(true);
   expect(openEventStream).toHaveBeenCalledTimes(1);
 });
+
+test.each(['light', 'dark'] as const)(
+  'tab bar has readable scaling labels, icons and large targets in %s mode',
+  async (mode) => {
+    jest.spyOn(ReactNative, 'useColorScheme').mockReturnValue(mode);
+    jest.spyOn(ReactNative, 'useWindowDimensions').mockReturnValue({
+      width: 390,
+      height: 844,
+      scale: 3,
+      fontScale: 2,
+    });
+    await render(app());
+    for (const name of ['runs', 'spend', 'settings']) {
+      let item = screen.getByTestId(`tab-${name}`).parent;
+      while (item && ReactNative.StyleSheet.flatten(item.props.style)?.minHeight !== 44) {
+        item = item.parent;
+      }
+      expect(ReactNative.StyleSheet.flatten(item?.props.style)).toEqual(
+        expect.objectContaining({ minWidth: 44, minHeight: 44 }),
+      );
+      expect(screen.getByTestId(`tab-${name}-label`)).toHaveProp('allowFontScaling', true);
+      expect(screen.getByTestId(`tab-${name}-label`)).toHaveStyle({ fontSize: 14 });
+      expect(screen.getAllByTestId(`tab-${name}-icon`).length).toBeGreaterThan(0);
+    }
+    expect(screen.getByTestId('tab-runs-label')).toHaveStyle({ fontWeight: '700' });
+    expect(screen.getByTestId('tab-spend-label')).toHaveStyle({ fontWeight: '400' });
+    expect(screen.getAllByTestId('tab-runs-icon')[0]).toHaveTextContent('list-circle');
+    await fireEvent.press(screen.getByTestId('tab-spend'));
+    expect(screen.getByTestId('tab-runs-label')).toHaveStyle({ fontWeight: '400' });
+    expect(screen.getByTestId('tab-spend-label')).toHaveStyle({ fontWeight: '700' });
+    expect(screen.getAllByTestId('tab-spend-icon')[0]).toHaveTextContent('pie-chart');
+    jest.restoreAllMocks();
+  },
+);
