@@ -117,10 +117,9 @@ test('opens the stream before loading the graph', async () => {
   expect(result.current.graph).toEqual(graphFixture);
   expect(result.current.lastUpdated).toBeInstanceOf(Date);
 });
-test('a run event updates that run and events for unknown runs are ignored', async () => {
+test('a run event updates a known run without loading the graph', async () => {
   const { result } = await live();
   latest().push(`id: 1\n${frame('run', runEvent)}`);
-  latest().push(frame('run', { ...runEvent, runId: 'run-unknown' }));
   await settle();
   const updated = run('run-coding', result.current.graph!);
   expect(updated).toEqual({
@@ -130,7 +129,97 @@ test('a run event updates that run and events for unknown runs are ignored', asy
     runId: undefined,
   });
   expect(run('run-parent', result.current.graph!)).toEqual(run('run-parent', graph()));
-  expect(result.current.graph!.runs).toHaveLength(graph().runs.length);
+  expect(options.client.getGraph).toHaveBeenCalledTimes(1);
+});
+
+test.each([null, 'run-parent'])('an unknown run appears with parent %s', async (parentRunId) => {
+  const { result } = await live();
+  const next = graph();
+  const added = {
+    ...run('run-parent', next),
+    id: 'run-new',
+    parentRunId,
+    startedAt: '2026-10-01T10:01:00.000Z',
+  };
+  next.runs.push(added);
+  (options.client.getGraph as jest.Mock).mockResolvedValueOnce(next);
+  latest().push(
+    frame('run', {
+      ...runEvent,
+      runId: added.id,
+      parentRunId,
+      status: 'running',
+      finishedAt: null,
+    }),
+  );
+  await settle();
+  expect(run(added.id, result.current.graph!)).toEqual({
+    ...added,
+    turns: 7,
+    tokensIn: 5000,
+    tokensOut: 900,
+    costUsd: 0.5,
+  });
+  expect(options.client.getGraph).toHaveBeenCalledTimes(2);
+});
+test.each(['service', 'outcome'])('an unknown %s run loads the graph', async (kind) => {
+  const { result } = await live();
+  const next = graph();
+  next.runs.push({ ...run('run-coding', next), id: 'run-new' });
+  (options.client.getRun as jest.Mock).mockResolvedValueOnce({
+    ...structuredClone(runFixture),
+    id: 'run-new',
+  });
+  (options.client.getGraph as jest.Mock).mockResolvedValueOnce(next);
+  latest().push(
+    frame(kind, {
+      kind,
+      runId: 'run-new',
+      name: 'postgres',
+      state: 'failed',
+      attempts: 3,
+      source: 'pull_request',
+    }),
+  );
+  await settle();
+  expect(run('run-new', result.current.graph!)).toBeDefined();
+  expect(options.client.getGraph).toHaveBeenCalledTimes(2);
+});
+test('unknown event bursts coalesce and buffered updates survive both loads', async () => {
+  const { result } = await live();
+  let finish: (value: Graph) => void = () => {};
+  let followUp: (value: Graph) => void = () => {};
+  (options.client.getGraph as jest.Mock)
+    .mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
+    .mockImplementationOnce(() => new Promise((resolve) => (followUp = resolve)));
+  latest().push(frame('run', { ...runEvent, runId: 'run-new' }));
+  await settle();
+  for (let i = 0; i < 20; i++) latest().push(frame('run', { ...runEvent, runId: 'new-' + i }));
+  latest().push(frame('run', runEvent));
+  await settle();
+  expect(options.client.getGraph).toHaveBeenCalledTimes(2);
+  finish(graph());
+  await settle();
+  expect(run('run-coding', result.current.graph!).status).toBe('succeeded');
+  expect(options.client.getGraph).toHaveBeenCalledTimes(3);
+  latest().push(frame('run', { ...runEvent, turns: 9 }));
+  await settle();
+  followUp(graph());
+  await settle();
+  expect(run('run-coding', result.current.graph!).turns).toBe(9);
+  expect(options.client.getGraph).toHaveBeenCalledTimes(3);
+});
+test('a failed unknown-run load keeps the last graph and reconnects with back-off', async () => {
+  const { result } = await live();
+  const previous = result.current.graph;
+  (options.client.getGraph as jest.Mock).mockRejectedValueOnce(new TypeError('Network failed'));
+  latest().push(frame('run', { ...runEvent, runId: 'run-new' }));
+  await settle();
+  expect(result.current.graph).toBe(previous);
+  expect(result.current.status).toBe('reconnecting');
+  expect(signals[0].aborted).toBe(true);
+  await advance(3000);
+  expect(options.client.getGraph).toHaveBeenCalledTimes(3);
 });
 test('a service event updates that service', async () => {
   const { result } = await live();

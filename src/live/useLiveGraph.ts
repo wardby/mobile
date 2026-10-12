@@ -57,6 +57,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
   let openedAt: number | null = null;
   let load = 0;
   let buffered: ViewerEvent[] | null = null;
+  let refreshPending = false;
 
   const update = (next: Partial<LiveGraphState>) => {
     state = { ...state, ...next };
@@ -70,6 +71,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
     openedAt = null;
     load++;
     buffered = null;
+    refreshPending = false;
   }
   function connect() {
     disconnect();
@@ -114,8 +116,12 @@ export function createLiveGraph(options: LiveGraphOptions) {
   }
   async function refresh() {
     if (!running || paused) return;
+    if (buffered) {
+      refreshPending = true;
+      return;
+    }
     const current = ++load;
-    buffered ??= [];
+    buffered = [];
     let graph: Graph;
     try {
       graph = await options.client.getGraph();
@@ -129,6 +135,10 @@ export function createLiveGraph(options: LiveGraphOptions) {
     buffered = null;
     update({ graph, lastUpdated: new Date() });
     events.forEach(apply);
+    if (refreshPending) {
+      refreshPending = false;
+      void refresh();
+    }
   }
   function handle(frame: SseFrame) {
     let data: unknown;
@@ -144,8 +154,14 @@ export function createLiveGraph(options: LiveGraphOptions) {
       update({ resyncVersion: (state.resyncVersion ?? 0) + 1 });
       void refresh();
     } else if (frame.event === 'run' || frame.event === 'service' || frame.event === 'outcome') {
-      if (buffered) buffered.push(data as ViewerEvent);
-      else apply(data as ViewerEvent);
+      const event = data as ViewerEvent;
+      if (!state.graph?.runs.some((run) => run.id === event.runId)) {
+        // Unknown rows need the complete graph shape. Coalesce requests without
+        // invalidating the current load, and keep this event for replay too.
+        void refresh();
+      }
+      if (buffered) buffered.push(event);
+      else apply(event);
     }
   }
   function replaceRun(id: string, change: (run: Run) => Run) {
