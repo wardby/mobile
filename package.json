@@ -10,7 +10,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "jest",
-    "export": "expo export --platform all --output-dir dist"
+    "export": "expo export --platform all --output-dir dist",
+    "api:sync": "node src/api/sync-contract.cjs",
+    "api:generate": "node src/api/generate-schema.cjs"
   },
   "dependencies": {
     "expo": "~57.0.27",
@@ -33,11 +35,42 @@
     "eslint-config-expo": "^57.0.2",
     "jest": "^29.7.0",
     "jest-expo": "^57.0.5",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.9",
     "react-test-renderer": "19.2.3",
     "typescript": "^6.0.3"
   },
   "jest": {
-    "preset": "jest-expo"
+    "projects": [
+      {
+        "displayName": "app",
+        "preset": "jest-expo",
+        "testMatch": [
+          "<rootDir>/__tests__/**/*.test.ts?(x)"
+        ]
+      },
+      {
+        "displayName": "api",
+        "testEnvironment": "node",
+        "testMatch": [
+          "<rootDir>/src/api/__tests__/**/*.test.[jt]s"
+        ],
+        "transform": {
+          "^.+\\.[jt]s$": [
+            "babel-jest",
+            {
+              "presets": [
+                "babel-preset-expo"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }

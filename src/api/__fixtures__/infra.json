@@ -1,0 +1,9 @@
+{
+  "launcher": "docker",
+  "kubernetes": null,
+  "native": {
+    "launcher": "docker",
+    "warmPoolSize": 2,
+    "kubernetes": null
+  }
+}

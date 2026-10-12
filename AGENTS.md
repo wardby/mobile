@@ -44,3 +44,13 @@ Never create or edit `ios/` or `android/` (Continuous Native Generation). Config
 ## Accessibility
 
 Every control has an accessible label. Every control a test touches has a `testID`.
+
+## API contract
+
+Run `npm run api:sync` to extract the viewer OpenAPI contract from the pinned
+`@wardby/cli` package, then `npm run api:generate` to regenerate its TypeScript
+schema. `src/api/openapi.yml` and `src/api/schema.ts` are generated: never edit
+these files by hand. Commit both outputs together. Bump `CLI_VERSION` in
+`src/api/sync-contract.cjs` to pick up API changes, then refresh the fixtures and
+run all checks. The schema freshness test checks the generated types against the
+vendored contract.
