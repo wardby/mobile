@@ -339,3 +339,11 @@ test('useLiveGraph outside the provider throws a clear error', async () => {
     'useLiveGraph must be used inside LiveGraphProvider',
   );
 });
+
+test('resync notifies detail subscribers even when graph runs are unchanged', async () => {
+  const hook = await live();
+  const before = hook.result.current.resyncVersion ?? 0;
+  latest().push(frame('resync', {}));
+  await settle();
+  expect(hook.result.current.resyncVersion).toBe(before + 1);
+});

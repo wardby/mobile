@@ -1,4 +1,11 @@
-import { formatBudget, formatCost, relativeTime } from '../../src/runs/format';
+import {
+  formatBudget,
+  formatCost,
+  relativeTime,
+  formatDuration,
+  formatCount,
+  spendLevel,
+} from '../../src/runs/format';
 
 test.each([
   [0, '$0.00'],
@@ -49,4 +56,41 @@ test.each([
   [-5 * m, 'just now'],
 ])('relativeTime %p ms ago is %p', (ms, text) => {
   expect(relativeTime(ago(ms), now)).toBe(text);
+});
+
+test.each([
+  [0, '0s'],
+  [45000, '45s'],
+  [59000, '59s'],
+  [60000, '1m 0s'],
+  [432000, '7m 12s'],
+  [3600000, '1h 00m'],
+  [3780000, '1h 03m'],
+  [-1, '0s'],
+])('formatDuration(%p) is %p', (ms, expected) => {
+  expect(formatDuration(ms)).toBe(expected);
+});
+test.each([
+  [0, '0'],
+  [812, '812'],
+  [999, '999'],
+  [1000, '1k'],
+  [6500, '6.5k'],
+  [1000000, '1M'],
+  [1200000, '1.2M'],
+])('formatCount(%p) is %p', (n, expected) => {
+  expect(formatCount(n)).toBe(expected);
+});
+test.each([
+  [0.5, 1, 'running', 'ok'],
+  [0.799, 1, 'running', 'ok'],
+  [0.8, 1, 'running', 'warn'],
+  [0.85, 1, 'running', 'warn'],
+  [1, 1, 'running', 'over'],
+  [2, 1, 'succeeded', 'over'],
+  [0, 1, 'budget_exhausted', 'over'],
+  [0, 0, 'running', 'ok'],
+  [1, 0, 'running', 'over'],
+] as const)('spendLevel %p / %p %s is %s', (cost, budget, status, expected) => {
+  expect(spendLevel(cost, budget, status)).toBe(expected);
 });

@@ -21,3 +21,23 @@ export function relativeTime(iso: string, now: number) {
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
 }
+
+export function formatDuration(ms: number) {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
+}
+
+export function formatCount(n: number) {
+  if (n < 1000) return String(n);
+  const divisor = n >= 1000000 ? 1000000 : 1000;
+  return `${Number((n / divisor).toFixed(1))}${divisor === 1000000 ? 'M' : 'k'}`;
+}
+
+export function spendLevel(cost: number, budget: number, status: string): 'ok' | 'warn' | 'over' {
+  if (status === 'budget_exhausted' || (cost > 0 && cost >= budget)) return 'over';
+  if (budget > 0 && cost / budget >= 0.8) return 'warn';
+  return 'ok';
+}
