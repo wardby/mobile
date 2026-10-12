@@ -24,6 +24,7 @@ export type LiveGraphState = {
   graph: Graph | null;
   status: LiveStatus;
   lastUpdated: Date | null;
+  resyncVersion?: number;
 };
 export type LiveGraphOptions = {
   baseUrl: string;
@@ -140,6 +141,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
       const connected = (data as { connected?: unknown } | null)?.connected === true;
       update({ status: connected ? 'live' : 'reconnecting' });
     } else if (frame.event === 'resync') {
+      update({ resyncVersion: (state.resyncVersion ?? 0) + 1 });
       void refresh();
     } else if (frame.event === 'run' || frame.event === 'service' || frame.event === 'outcome') {
       if (buffered) buffered.push(data as ViewerEvent);

@@ -10,6 +10,7 @@ import Runs from '../../app/(tabs)/index';
 import Spend from '../../app/(tabs)/spend';
 import Settings from '../../app/(tabs)/settings';
 import RunDetail from '../../app/runs/[id]';
+import mockDetailFixture from '../../src/api/__fixtures__/run-detail.json';
 import graphFixture from '../../src/api/__fixtures__/graph.json';
 import type { components } from '../../src/api/schema';
 import { useSession } from '../../src/auth/session';
@@ -21,7 +22,11 @@ type Run = Graph['runs'][number];
 
 jest.mock('../../src/auth/session', () => ({
   useSession: jest.fn(),
-  session: { getAccessToken: jest.fn(), signOut: jest.fn() },
+  session: {
+    apiClient: () => ({ getRun: async (id: string) => ({ ...mockDetailFixture, id }) }),
+    getAccessToken: jest.fn(),
+    signOut: jest.fn(),
+  },
 }));
 jest.mock('../../src/live/useLiveGraph', () => ({
   useLiveGraph: jest.fn(),
@@ -277,13 +282,11 @@ test('pull to refresh calls refresh()', async () => {
   expect(refresh).toHaveBeenCalledTimes(1);
 });
 
-test('tapping a row opens the run detail placeholder', async () => {
+test('tapping a row opens the run detail', async () => {
   state.graph = graphOf([run('run-42')]);
   await render(app());
   await fireEvent.press(screen.getByTestId('run-row-run-42'));
-  expect(screen.getByTestId('run-detail-placeholder')).toHaveTextContent(
-    'run-42Run detail coming soon.',
-  );
+  expect(screen.getByTestId('run-detail')).toBeTruthy();
   expect(router.canGoBack()).toBe(true);
 });
 
