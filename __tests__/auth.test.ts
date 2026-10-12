@@ -132,7 +132,48 @@ test.each(['invalid_grant', 'mobile_disabled'])(
     reply({ error }, 400);
     expect(await s.getAccessToken()).toBeNull();
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('wardby.session');
+    expect(s.getSnapshot()).toMatchObject({ status: 'signedOut', host: null });
     jest.restoreAllMocks();
+  },
+);
+test.each(['network', '5xx', 'metadata'])(
+  'refresh %s failure preserves the secure session and allows retry',
+  async (failure) => {
+    const stored = new Map<string, string>();
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(
+      async (key) => stored.get(key) ?? null,
+    );
+    (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (key, value) => {
+      stored.set(key, value);
+    });
+    (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async (key) => {
+      stored.delete(key);
+    });
+    try {
+      const signed = await signedIn();
+      const saved = stored.get('wardby.session');
+      const s = failure === 'metadata' ? createSession() : signed;
+      jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 550000);
+      if (failure === '5xx') reply({}, 500);
+      else fetchMock.mockRejectedValueOnce(new Error());
+      expect(await s.getAccessToken()).toBeNull();
+      expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+      expect(stored.get('wardby.session')).toBe(saved);
+      expect(s.getSnapshot()).toMatchObject({
+        status: 'signedIn',
+        host: 'https://server.example',
+      });
+      if (failure === 'metadata') {
+        reply(fixtures.resource);
+        reply(fixtures.metadata);
+      }
+      reply(fixtures.tokens);
+      expect(await s.getAccessToken()).toBe(fixtures.tokens.access_token);
+    } finally {
+      jest.restoreAllMocks();
+      (SecureStore.setItemAsync as jest.Mock).mockReset();
+      (SecureStore.deleteItemAsync as jest.Mock).mockReset();
+    }
   },
 );
 test.each([200, 500])('sign-out revokes and clears even on status %s', async (status) => {

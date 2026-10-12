@@ -23,6 +23,7 @@ type State = {
   ready: boolean;
 };
 const key = 'wardby.session';
+class TokenRejectionError extends AuthError {}
 export function createSession() {
   let tokens: Tokens | null = null;
   let config: AuthConfig | null = null;
@@ -74,6 +75,14 @@ export function createSession() {
       body: new URLSearchParams(params).toString(),
     });
     const body = await response.json();
+    if (
+      !response.ok &&
+      response.status < 500 &&
+      (body.error === 'invalid_grant' || body.error === 'mobile_disabled')
+    )
+      throw new TokenRejectionError(
+        body.error === 'mobile_disabled' ? 'mobile_disabled' : 'failed',
+      );
     if (!response.ok)
       throw new AuthError(
         body.error === 'mobile_disabled' ||
@@ -165,8 +174,8 @@ export function createSession() {
             expiresAt: Date.now() + body.expires_in * 1000,
           });
           return body.access_token;
-        } catch {
-          if (current === generation) await clear();
+        } catch (error) {
+          if (current === generation && error instanceof TokenRejectionError) await clear();
           return null;
         } finally {
           refresh = null;
