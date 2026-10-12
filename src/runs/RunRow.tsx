@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import type { components } from '../api/schema';
 import { useColors } from '../navigation/styles';
+import { NavigationRow } from '../ui/interactions';
 import { formatBudget, formatCost, relativeTime } from './format';
 import { statusStyle } from './status';
 
@@ -27,7 +28,7 @@ export function RunRow({
   let details = `${started} · ${cost} of ${formatBudget(run.budgetUsd)}`;
   if (subRuns > 0) details += ` · ${subRuns} sub-run${subRuns === 1 ? '' : 's'}`;
   return (
-    <Pressable
+    <NavigationRow
       testID={`run-row-${run.id}`}
       accessible
       accessibilityRole="button"
@@ -35,26 +36,29 @@ export function RunRow({
       style={styles.row}
       onPress={onPress}
     >
-      <View style={styles.line}>
-        <Text numberOfLines={1} style={[styles.name, { color: colors.text }]}>
-          {run.agentName}
-        </Text>
-        <View
-          testID={`run-status-${run.id}`}
-          style={[styles.pill, { backgroundColor: pillColors.background }]}
-        >
-          <Text style={[styles.pillText, { color: pillColors.text }]}>{pill.label}</Text>
+      <View style={styles.content}>
+        <View style={styles.line}>
+          <Text numberOfLines={1} style={[styles.name, { color: colors.text }]}>
+            {run.agentName}
+          </Text>
+          <View
+            testID={`run-status-${run.id}`}
+            style={[styles.pill, { backgroundColor: pillColors.background }]}
+          >
+            <Text style={[styles.pillText, { color: pillColors.text }]}>{pill.label}</Text>
+          </View>
         </View>
+        <Text numberOfLines={1} style={[styles.details, { color: colors.muted }]}>
+          {details}
+        </Text>
       </View>
-      <Text numberOfLines={1} style={[styles.details, { color: colors.muted }]}>
-        {details}
-      </Text>
-    </Pressable>
+    </NavigationRow>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { height: rowHeight, paddingHorizontal: 16, justifyContent: 'center', gap: 4 },
+  row: { height: rowHeight, paddingHorizontal: 16 },
+  content: { flex: 1, gap: 4 },
   line: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   name: { flex: 1, fontSize: 17, fontWeight: 'bold' },
   pill: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },

@@ -1,14 +1,7 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput } from 'react-native';
+import { TextButton } from '../src/ui/interactions';
 import { name } from '../app.identity';
 import { messages } from '../src/auth/errors';
 import { useSession } from '../src/auth/session';
@@ -74,10 +67,11 @@ export default function Connect() {
             {messages[auth.error.code]}
           </Text>
         )}
-        <Pressable
+        <TextButton
           testID="connect-submit"
           accessibilityLabel={busy ? 'Signing in…' : 'Sign in'}
-          accessibilityRole="button"
+          label={busy ? 'Signing in…' : 'Sign in'}
+          loading={busy}
           disabled={!host.trim() || busy}
           style={[
             styles.button,
@@ -87,12 +81,7 @@ export default function Connect() {
           onPress={() => {
             void submit();
           }}
-        >
-          {busy && <ActivityIndicator color={colors.text} />}
-          <Text style={[styles.text, { color: colors.text }]}>
-            {busy ? 'Signing in…' : 'Sign in'}
-          </Text>
-        </Pressable>
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );

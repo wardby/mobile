@@ -2,8 +2,6 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
-  Linking,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -11,6 +9,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import { ExternalLink, TextButton } from '../../src/ui/interactions';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
 import { styles, useColors } from '../../src/navigation/styles';
@@ -46,15 +45,7 @@ function RunDetailContent({ id }: { id: string }) {
   const back = () => router.replace('/');
   const textStyle = [styles.text, { color: colors.text }];
   const button = (label: string, testID: string, onPress: () => void) => (
-    <Pressable
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={styles.button}
-    >
-      <Text style={textStyle}>{label}</Text>
-    </Pressable>
+    <TextButton testID={testID} label={label} onPress={onPress} style={styles.button} />
   );
   const section = (label: string, testID: string, children: ReactNode) => (
     <View testID={testID} style={styles.section}>
@@ -70,14 +61,12 @@ function RunDetailContent({ id }: { id: string }) {
         title: run?.agentName ?? 'Run',
         headerRight: () => <LiveIndicator />,
         headerLeft: () => (
-          <Pressable
+          <TextButton
             testID="run-detail-header-back"
             accessibilityLabel="Back to Runs"
-            accessibilityRole="button"
+            label="‹ Runs"
             onPress={() => (router.canGoBack() ? router.back() : back())}
-          >
-            <Text style={textStyle}>‹ Runs</Text>
-          </Pressable>
+          />
         ),
       }}
     />
@@ -235,16 +224,7 @@ function RunDetailContent({ id }: { id: string }) {
                 style: local.outcome,
               };
               return url ? (
-                <Pressable
-                  key={index}
-                  {...props}
-                  accessibilityRole="link"
-                  onPress={() => {
-                    void Linking.openURL(url).catch(() => {});
-                  }}
-                >
-                  <Text style={textStyle}>{label} ›</Text>
-                </Pressable>
+                <ExternalLink key={index} {...props} label={label} url={url} />
               ) : (
                 <View key={index} {...props}>
                   <Text style={textStyle}>{label}</Text>
@@ -284,15 +264,12 @@ function RunDetailContent({ id }: { id: string }) {
                 {expanded ? run.finalText : lines.slice(0, 6).join('\n')}
               </Text>
               {lines.length > 6 && (
-                <Pressable
+                <TextButton
                   testID="run-detail-result-toggle"
-                  accessibilityRole="button"
-                  accessibilityLabel={expanded ? 'Show less' : 'Show more'}
-                  accessibilityState={{ expanded }}
+                  label={expanded ? 'Show less' : 'Show more'}
+                  expanded={expanded}
                   onPress={() => setExpanded(!expanded)}
-                >
-                  <Text style={textStyle}>{expanded ? 'Show less' : 'Show more'}</Text>
-                </Pressable>
+                />
               )}
             </>,
           )}

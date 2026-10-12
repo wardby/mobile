@@ -1,15 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TextButton } from '../../src/ui/interactions';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
 import { styles as shared, useColors } from '../../src/navigation/styles';
 import { rowHeight, RunRow } from '../../src/runs/RunRow';
@@ -73,21 +66,14 @@ export default function Runs() {
         {filters.map((item) => {
           const active = item.key === filter;
           return (
-            <Pressable
+            <TextButton
               key={item.key}
               testID={`runs-filter-${item.key}`}
-              accessibilityRole="button"
-              accessibilityLabel={item.label}
+              label={item.label}
               accessibilityState={{ selected: active }}
-              style={[styles.segment, active && { backgroundColor: colors.text }]}
+              style={styles.segment}
               onPress={() => setFilter(item.key)}
-            >
-              <Text
-                style={[styles.segmentText, { color: active ? colors.background : colors.text }]}
-              >
-                {item.label}
-              </Text>
-            </Pressable>
+            />
           );
         })}
       </View>
@@ -140,7 +126,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   segment: { flex: 1, paddingVertical: 8, alignItems: 'center' },
-  segmentText: { fontSize: 15, fontWeight: '600' },
   separator: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
   empty: { textAlign: 'center', padding: 24 },
 });

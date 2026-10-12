@@ -257,3 +257,20 @@ test('outcomes arriving with the first live graph refetch stale detail', async (
   await view.rerender(<RunDetail />);
   expect(getRun).toHaveBeenCalledTimes(2);
 });
+
+test('outcomes and result disclosure visibly identify their interaction', async () => {
+  await setup();
+  const outcome = screen.getByTestId('run-outcome-0');
+  expect(outcome).not.toHaveTextContent(/›/);
+  expect(outcome).toHaveProp('accessibilityHint', 'Opens in the browser');
+  const toggle = screen.getByTestId('run-detail-result-toggle');
+  expect(toggle).toHaveStyle({ minWidth: 44, minHeight: 44 });
+  expect(toggle).toHaveProp('accessibilityState', expect.objectContaining({ expanded: false }));
+  expect(toggle).toHaveTextContent(/▾/);
+  await fireEvent.press(toggle);
+  expect(screen.getByTestId('run-detail-result-toggle')).toHaveTextContent(/▴/);
+  expect(screen.getByTestId('run-detail-result-toggle')).toHaveProp(
+    'accessibilityState',
+    expect.objectContaining({ expanded: true }),
+  );
+});

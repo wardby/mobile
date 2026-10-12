@@ -127,19 +127,19 @@ test('shows top-level runs only, newest first, with sub-run counts', async () =>
     'run-row-fan-out',
   ]);
   const row = screen.getByTestId('run-row-mobile-delivery');
-  expect(row).toHaveTextContent('mobile-deliveryRunning2m ago · $0.43 of $12 · 1 sub-run');
+  expect(row).toHaveTextContent('mobile-deliveryRunning2m ago · $0.43 of $12 · 1 sub-run›');
   expect(row).toHaveProp(
     'accessibilityLabel',
     'mobile-delivery, Running, started 2m ago, cost $0.43',
   );
   expect(screen.getByTestId('run-row-nightly-report')).toHaveTextContent(
-    'nightly-reportRunning1h ago · $0.021 of $1',
+    'nightly-reportRunning1h ago · $0.021 of $1›',
   );
   expect(screen.getByTestId('run-row-triage-bot')).toHaveTextContent(
-    'triage-botOut of budget3h ago · $2.98 of $3',
+    'triage-botOut of budget3h ago · $2.98 of $3›',
   );
   expect(screen.getByTestId('run-row-fan-out')).toHaveTextContent(
-    'fan-outSucceeded1d ago · $0.12 of $5 · 2 sub-runs',
+    'fan-outSucceeded1d ago · $0.12 of $5 · 2 sub-runs›',
   );
 });
 

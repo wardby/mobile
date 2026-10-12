@@ -47,7 +47,7 @@ export default function TabsLayout() {
         tabBarLabelPosition: 'below-icon',
         tabBarAllowFontScaling: true,
         tabBarItemStyle: { minWidth: 44, minHeight: 44 },
-        tabBarActiveTintColor: colors.text,
+        tabBarActiveTintColor: colors.tint,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
           backgroundColor: colors.background,
