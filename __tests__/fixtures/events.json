@@ -1,0 +1,3 @@
+{
+  "stream": "retry: 3000\n\nevent: hello\ndata: {\"connected\":true}\n\n: ping\n\nid: 41\nevent: run\ndata: {\"kind\":\"run\",\"runId\":\"run-coding\",\"parentRunId\":\"run-parent\",\"agentId\":\"builder\",\"status\":\"succeeded\",\"turns\":7,\"tokensIn\":5000,\"tokensOut\":900,\"costUsd\":0.5,\"finishedAt\":\"2026-10-01T10:05:00.000Z\"}\n\nid: 42\nevent: service\ndata: {\"kind\":\"service\",\"runId\":\"run-coding\",\"name\":\"postgres\",\"state\":\"failed\",\"attempts\":3}\n\nid: 43\nevent: outcome\ndata: {\"kind\":\"outcome\",\"runId\":\"run-coding\",\"source\":\"pull_request\"}\n\nevent: status\ndata: {\"connected\":false}\n\nevent: status\ndata: {\"connected\":true}\n\nevent: resync\ndata: {}\n\n"
+}
