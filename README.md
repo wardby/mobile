@@ -19,6 +19,24 @@ npm test
 npm run export
 ```
 
+## Builds (EAS)
+
+Build an iOS development client for the simulator:
+
+```sh
+eas build -p ios --profile development-simulator
+```
+
+Install the resulting build on an iOS simulator by drag-and-drop.
+
+Build an Android development client:
+
+```sh
+eas build -p android --profile development
+```
+
+For white-label builds, change `easProjectId` in `app.identity.ts` to your EAS project ID.
+
 ## White-label builds
 
 `app.identity.ts` is the only place that names the app: `name`, `slug`, `scheme`, `iosBundleId`, `androidPackage` and the optional `easProjectId`. `app.config.ts` reads it. Edit that file to produce a differently branded build.
