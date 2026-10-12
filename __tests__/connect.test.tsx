@@ -51,6 +51,13 @@ test('success navigates after submitting host', async () => {
   expect(signIn).toHaveBeenCalledWith('server.example');
   expect(mockReplace).toHaveBeenCalledWith('/');
 });
+test('sign-in button is dimmed only while disabled', async () => {
+  await render(<Connect />);
+  expect(screen.getByTestId('connect-submit')).toHaveStyle({ opacity: 0.5 });
+  await fireEvent.changeText(screen.getByTestId('connect-host'), 'server.example');
+  expect(screen.getByTestId('connect-submit')).toBeEnabled();
+  expect(screen.getByTestId('connect-submit')).toHaveStyle({ opacity: 1 });
+});
 test('Return submits host', async () => {
   await render(<Connect />);
   await fireEvent.changeText(screen.getByTestId('connect-host'), 'server.example');

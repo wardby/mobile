@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TextButton } from '../../src/ui/interactions';
 import { useSession } from '../../src/auth/session';
 import { styles, useColors } from '../../src/navigation/styles';
 
@@ -41,15 +42,14 @@ export default function Settings() {
             </Text>
           </View>
         </View>
-        <Pressable
+        <TextButton
           testID="settings-sign-out"
           accessibilityLabel="Sign out"
-          accessibilityRole="button"
+          label="Sign out"
+          destructive
           style={[styles.button, { borderColor: colors.destructive }]}
           onPress={confirmSignOut}
-        >
-          <Text style={[styles.text, { color: colors.destructive }]}>Sign out</Text>
-        </Pressable>
+        />
       </ScrollView>
     </SafeAreaView>
   );

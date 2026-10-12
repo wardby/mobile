@@ -3,6 +3,8 @@ import { type ColorValue, Platform, PlatformColor, StyleSheet, useColorScheme } 
 export function useColors() {
   const dark = useColorScheme() === 'dark';
   return {
+    // Darker than system blue in light mode to meet AA for normal-size text.
+    tint: dark ? '#66b2ff' : '#0066cc',
     background: Platform.select<ColorValue>({
       ios: PlatformColor('systemBackground'),
       android: PlatformColor('?android:attr/colorBackground'),

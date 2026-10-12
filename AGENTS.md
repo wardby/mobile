@@ -89,3 +89,10 @@ vendored contract.
 - Screens get runs only from `useLiveGraph()`, never by polling. `LiveGraphProvider` (in the signed-in tabs layout) keeps one event stream for the whole app.
 - Event-stream code lives in `src/live/`; it is the only network code outside `src/api/` and `src/auth/`.
 - Open the event stream first, then load the graph, then apply events on top. On every `resync` and after every reconnect, refetch the graph instead of trying to resume (there is no replay).
+
+## UI patterns
+
+- Use `ExternalLink` from `src/ui/interactions.tsx` for anything that opens the browser; it supplies the accent, external marker and browser accessibility hint. Inline Markdown result links (#28) are nested Text and cannot contain the Pressable used by ExternalLink; they use Text with the same accent, ↗ marker, browser hint and pressed opacity, while retaining URL vetting.
+- Use `NavigationRow` for full-row in-app navigation; only in-app navigation uses a trailing `›`.
+- Use `TextButton` for inline actions, filters and buttons. Pass `expanded` for disclosures to get the state and flipping indicator. Keep existing labels and testIDs.
+- Use `useColors().tint` only for interactive elements. The shared controls provide minimum 44×44 targets, pressed opacity and Android ripple; retain these when adding styles.
