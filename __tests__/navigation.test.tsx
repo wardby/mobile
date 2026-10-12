@@ -48,11 +48,11 @@ test('signedOut shows Connect', async () => {
   auth.status = 'signedOut';
   await render(app());
   expect(screen.getByTestId('connect-host')).toBeTruthy();
-  expect(screen.queryByTestId('runs-placeholder')).toBeNull();
+  expect(screen.queryByTestId('runs-loading')).toBeNull();
 });
 test('signedIn shows Runs', async () => {
   await render(app());
-  expect(screen.getByTestId('runs-placeholder')).toHaveTextContent('RunsComing soon.');
+  expect(screen.getByTestId('runs-loading')).toHaveTextContent('Loading runs…');
 });
 test('unknown session renders nothing', async () => {
   auth.ready = false;
@@ -85,7 +85,7 @@ test.each(['light', 'dark'] as const)(
         name,
       );
     }
-    expect(screen.getByTestId('runs-placeholder')).toHaveTextContent('RunsComing soon.');
+    expect(screen.getByTestId('runs-loading')).toHaveTextContent('Loading runs…');
     await fireEvent.press(screen.getByTestId('tab-spend'));
     expect(screen.getByTestId('spend-placeholder')).toHaveTextContent('SpendComing soon.');
     await fireEvent.press(screen.getByTestId('tab-settings'));
