@@ -1,0 +1,112 @@
+{
+  "generatedAt": "2026-10-01T10:00:00.000Z",
+  "since": "2026-10-01T10:00:00.000Z",
+  "limit": 500,
+  "truncated": false,
+  "runs": [
+    {
+      "id": "run-parent",
+      "parentRunId": null,
+      "agentId": "planner",
+      "agentName": "Planner",
+      "agentKind": "native",
+      "model": "planning-model",
+      "codingProvider": null,
+      "nativeExecutionMode": "control-plane",
+      "warmWorkerName": null,
+      "status": "running",
+      "trigger": {
+        "kind": "manual"
+      },
+      "turns": 3,
+      "tokensIn": 1200,
+      "tokensOut": 400,
+      "costUsd": 0.12,
+      "budgetUsd": 5,
+      "startedAt": "2026-10-01T10:00:00.000Z",
+      "finishedAt": null,
+      "heartbeatAt": "2026-10-01T10:00:00.000Z",
+      "outcomes": [],
+      "declaredServices": [],
+      "services": []
+    },
+    {
+      "id": "run-coding",
+      "parentRunId": "run-parent",
+      "agentId": "builder",
+      "agentName": "Builder",
+      "agentKind": "coding",
+      "model": "planning-model",
+      "codingProvider": "claude",
+      "nativeExecutionMode": null,
+      "warmWorkerName": null,
+      "status": "running",
+      "trigger": {
+        "kind": "subagent"
+      },
+      "turns": 3,
+      "tokensIn": 1200,
+      "tokensOut": 400,
+      "costUsd": 0.12,
+      "budgetUsd": 5,
+      "startedAt": "2026-10-01T10:00:00.000Z",
+      "finishedAt": null,
+      "heartbeatAt": "2026-10-01T10:00:00.000Z",
+      "outcomes": [],
+      "declaredServices": [
+        {
+          "name": "postgres",
+          "version": "16"
+        }
+      ],
+      "services": [
+        {
+          "name": "postgres",
+          "state": "ready",
+          "attempts": 1,
+          "reason": null,
+          "readyAt": "2026-10-01T10:00:00.000Z",
+          "failedAt": null,
+          "createdAt": "2026-10-01T10:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "run-child",
+      "parentRunId": "run-coding",
+      "agentId": "planner",
+      "agentName": "Planner",
+      "agentKind": "native",
+      "model": "planning-model",
+      "codingProvider": null,
+      "nativeExecutionMode": "control-plane",
+      "warmWorkerName": null,
+      "status": "succeeded",
+      "trigger": {
+        "kind": "subagent"
+      },
+      "turns": 3,
+      "tokensIn": 1200,
+      "tokensOut": 400,
+      "costUsd": 0.12,
+      "budgetUsd": 5,
+      "startedAt": "2026-10-01T10:00:00.000Z",
+      "finishedAt": "2026-10-01T10:00:00.000Z",
+      "heartbeatAt": "2026-10-01T10:00:00.000Z",
+      "outcomes": [],
+      "declaredServices": [],
+      "services": []
+    }
+  ],
+  "spend": {
+    "todayUsd": 0.36,
+    "groups": [
+      {
+        "id": "engineering",
+        "name": "Engineering",
+        "dailyBudgetUsd": null,
+        "spentTodayUsd": 0.36
+      }
+    ]
+  }
+}
