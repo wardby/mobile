@@ -64,10 +64,16 @@ export async function discover(input: string): Promise<AuthConfig> {
   const resource = await metadata(`${host}/.well-known/oauth-protected-resource`);
   if (!Array.isArray(resource.authorization_servers) || !resource.authorization_servers.length)
     throw new AuthError('not_wardby');
-  const issuer = endpoint(resource.authorization_servers[0]);
-  const auth = await metadata(
-    `${issuer.replace(/\/$/, '')}/.well-known/oauth-authorization-server`,
-  );
+  const issuer = new URL(endpoint(resource.authorization_servers[0]));
+  const root = `${issuer.origin}/.well-known/oauth-authorization-server`;
+  const path = issuer.pathname.replace(/\/$/, '');
+  let auth: Record<string, unknown>;
+  try {
+    auth = await metadata(`${root}${path}`);
+  } catch (error) {
+    if (!path || (error as AuthError).code !== 'not_wardby') throw error;
+    auth = await metadata(root);
+  }
   const config = {
     host,
     resource: endpoint(resource.resource),

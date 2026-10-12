@@ -3,6 +3,10 @@
     "resource": "https://server.example/mcp",
     "authorization_servers": ["https://server.example"]
   },
+  "pathResource": {
+    "resource": "https://server.example/mcp",
+    "authorization_servers": ["https://server.example/mcp"]
+  },
   "metadata": {
     "authorization_endpoint": "https://server.example/authorize",
     "token_endpoint": "https://server.example/token",
