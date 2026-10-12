@@ -15,6 +15,7 @@ export default function RootLayout() {
         </Stack.Protected>
         <Stack.Protected guard={auth.status === 'signedIn'}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="runs/[id]" options={{ headerShown: true, title: 'Run' }} />
         </Stack.Protected>
       </Stack>
     </ThemeProvider>

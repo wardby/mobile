@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { LiveGraphProvider } from '../../src/live/useLiveGraph';
 import { useColors } from '../../src/navigation/styles';
+import { LiveIndicator } from '../../src/runs/LiveIndicator';
 
 export default function TabsLayout() {
   const colors = useColors();
@@ -23,6 +24,7 @@ export default function TabsLayout() {
             title: 'Runs',
             tabBarAccessibilityLabel: 'Runs',
             tabBarButtonTestID: 'tab-runs',
+            headerRight: () => <LiveIndicator />,
           }}
         />
         <Tabs.Screen
