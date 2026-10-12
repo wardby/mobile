@@ -269,6 +269,31 @@ test('outcomes arriving with the first live graph refetch stale detail', async (
   expect(getRun).toHaveBeenCalledTimes(2);
 });
 
+test.each(['javascript:alert(1)', 'custom:run', 'https://', '/relative'])(
+  'result renders unsafe link %s as plain text',
+  async (href) => {
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    detail = { ...detail, finalText: `[Unsafe link](${href})` };
+    await setup();
+    const text = screen.getByText('Unsafe link');
+    expect(text).toBeTruthy();
+    expect(text.props.onPress).toBeUndefined();
+    expect(screen.queryByRole('link', { name: 'Unsafe link, opens in browser' })).toBeNull();
+    expect(open).not.toHaveBeenCalled();
+  },
+);
+
+test.each(['http://example.test/docs', 'mailto:admin@example.test'])(
+  'result opens safe link %s',
+  async (href) => {
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    detail = { ...detail, finalText: `[Safe link](${href})` };
+    await setup();
+    await fireEvent.press(screen.getByTestId('markdown-link-result-0-0'));
+    expect(open).toHaveBeenCalledWith(href);
+  },
+);
+
 test.each(['light', 'dark'])(
   'result formats Markdown in %s, opens links externally and keeps images and HTML inert',
   async (mode) => {

@@ -3,6 +3,15 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { styles, useColors } from '../navigation/styles';
 
+function isSafeLink(href: string): boolean {
+  try {
+    const { protocol } = new URL(href);
+    return protocol === 'http:' || protocol === 'https:' || protocol === 'mailto:';
+  } catch {
+    return false;
+  }
+}
+
 export function MarkdownResult({ text }: { text: string }) {
   const colors = useColors();
   const tokens = useMemo(() => marked.lexer(text), [text]);
@@ -80,6 +89,13 @@ export function MarkdownResult({ text }: { text: string }) {
             </View>
           );
         case 'link':
+          if (!isSafeLink(token.href)) {
+            return (
+              <Text key={key} style={textStyle}>
+                {renderTokens(token.tokens, key)}
+              </Text>
+            );
+          }
           return (
             <Text
               key={key}
