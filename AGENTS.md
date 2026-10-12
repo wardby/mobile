@@ -38,6 +38,9 @@ Never create or edit `ios/` or `android/` (Continuous Native Generation). Config
 
 - `npm run typecheck`, `npm run lint`, `npm run format:check` and `npm test` pass.
 - The app bundles: run `npm run export -- --platform web` in the coding sandbox. CI's `ci` check runs the full `npm run export` (iOS, Android and web) on every pull request.
+  - In the coding sandbox, `npm run export -- --platform web` takes about **2–3 minutes**. Run it **once**, in the foreground. Don't wrap it in your own `timeout`, and don't run it in the background and poll.
+  - Run it **last**, after typecheck, lint, format:check and tests pass, so a failure earlier doesn't waste an export.
+  - If it fails, read the error output from that run before deciding to run it again.
 - Every new hook and screen has tests.
 - Network code is tested against recorded fixtures, never a live server.
 - The PR body says `Resolves #<issue>` and copies the ticket's acceptance checklist with each item ticked.
