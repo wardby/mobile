@@ -13,7 +13,7 @@ const identity: Identity = {
   scheme: 'com.wardby.mobile',
   iosBundleId: 'com.wardby.mobile',
   androidPackage: 'com.wardby.mobile',
-  easProjectId: undefined,
+  easProjectId: '1d693772-46a8-4b89-a9f1-f0db791473cf',
 };
 
 export const { name, slug, scheme, iosBundleId, androidPackage, easProjectId } = identity;
