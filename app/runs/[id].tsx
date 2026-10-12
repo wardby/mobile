@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
 import { styles, useColors } from '../../src/navigation/styles';
 import { LiveIndicator } from '../../src/runs/LiveIndicator';
+import { MarkdownResult } from '../../src/runs/MarkdownResult';
 import { RunRow } from '../../src/runs/RunRow';
 import {
   formatCost,
@@ -37,7 +38,6 @@ function RunDetailContent({ id }: { id: string }) {
   const colors = useColors();
   const dark = useColorScheme() === 'dark';
   const [now, setNow] = useState(Date.now);
-  const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     if (run?.status !== 'running' || run.finishedAt) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -119,7 +119,6 @@ function RunDetailContent({ id }: { id: string }) {
         ? 1
         : 0;
   const children = graph?.runs.filter((child) => child.parentRunId === id) ?? [];
-  const lines = run.finalText?.split('\n') ?? [];
   return (
     <SafeAreaView
       edges={['left', 'right', 'bottom']}
@@ -279,22 +278,7 @@ function RunDetailContent({ id }: { id: string }) {
           section(
             'RESULT',
             'run-detail-result',
-            <>
-              <Text style={textStyle}>
-                {expanded ? run.finalText : lines.slice(0, 6).join('\n')}
-              </Text>
-              {lines.length > 6 && (
-                <Pressable
-                  testID="run-detail-result-toggle"
-                  accessibilityRole="button"
-                  accessibilityLabel={expanded ? 'Show less' : 'Show more'}
-                  accessibilityState={{ expanded }}
-                  onPress={() => setExpanded(!expanded)}
-                >
-                  <Text style={textStyle}>{expanded ? 'Show less' : 'Show more'}</Text>
-                </Pressable>
-              )}
-            </>,
+            <MarkdownResult key={run.id} text={run.finalText} />,
           )}
         {run.status === 'failed' &&
           run.error &&

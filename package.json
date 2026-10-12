@@ -25,6 +25,7 @@
     "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "expo-web-browser": "~57.0.3",
+    "marked": "^18.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -52,6 +53,11 @@
         "preset": "jest-expo",
         "testMatch": [
           "<rootDir>/__tests__/**/*.test.ts?(x)"
+        ],
+        "transformIgnorePatterns": [
+          "/node_modules/(?!(marked|.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation))",
+          "/node_modules/react-native-reanimated/plugin/",
+          "/node_modules/@react-native/babel-preset/"
         ]
       },
       {

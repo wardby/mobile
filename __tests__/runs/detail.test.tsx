@@ -7,6 +7,7 @@ import { ApiError } from '../../src/api/client';
 import { session } from '../../src/auth/session';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
 import type { components } from '../../src/api/schema';
+import * as palette from '../../src/navigation/styles';
 
 type Detail = components['schemas']['run-detail'];
 const mockPush = jest.fn();
@@ -90,11 +91,21 @@ test('loads finished coding detail, all blocks, PR link and expandable plain res
   expect(open).toHaveBeenCalledWith(
     detail.outcomes[0].kind === 'pull_request' ? detail.outcomes[0].url : '',
   );
-  expect(screen.getByTestId('run-detail-result')).not.toHaveTextContent(new RegExp('seven'));
+  expect(screen.getByTestId('run-detail-result')).toHaveTextContent(new RegExp('seven'));
+  expect(screen.getByTestId('run-detail-result-viewport')).toHaveStyle({ maxHeight: 144 });
+  await fireEvent(screen.getByTestId('run-detail-result-content'), 'layout', {
+    nativeEvent: { layout: { height: 200 } },
+  });
   await fireEvent.press(screen.getByTestId('run-detail-result-toggle'));
+  expect(screen.getByTestId('run-detail-result-toggle')).toHaveProp('accessibilityState', {
+    expanded: true,
+  });
   expect(screen.getByTestId('run-detail-result')).toHaveTextContent(new RegExp('seven'));
   await fireEvent.press(screen.getByTestId('run-detail-result-toggle'));
-  expect(screen.getByTestId('run-detail-result')).not.toHaveTextContent(new RegExp('seven'));
+  expect(screen.getByTestId('run-detail-result-viewport')).toHaveStyle({ maxHeight: 144 });
+  expect(screen.getByTestId('run-detail-result-toggle')).toHaveProp('accessibilityState', {
+    expanded: false,
+  });
 });
 
 test('live fields and timer update without fetching; outcomes and resync refetch', async () => {
@@ -257,3 +268,43 @@ test('outcomes arriving with the first live graph refetch stale detail', async (
   await view.rerender(<RunDetail />);
   expect(getRun).toHaveBeenCalledTimes(2);
 });
+
+test.each(['light', 'dark'])(
+  'result formats Markdown in %s, opens links externally and keeps images and HTML inert',
+  async (mode) => {
+    const color = mode === 'dark' ? '#ffffff' : '#000000';
+    jest.spyOn(palette, 'useColors').mockReturnValue({
+      background: mode === 'dark' ? '#121212' : '#ffffff',
+      text: color,
+      muted: '#888888',
+      destructive: '#ff3b30',
+    });
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    detail = {
+      ...detail,
+      finalText:
+        '# Summary\n\nA **bold** and *italic* result with `inline`.\n\n- First\n- Second\n\n3. Third\n4. Fourth\n\n> Quoted\n\n```ts\nconst result = 1;\n```\n\n[Read more](https://example.test/docs)\n\n![Chart](https://example.test/image.png)\n\n<div>Raw HTML</div>',
+    };
+    await setup();
+    expect(screen.getByRole('header', { name: 'Summary' })).toHaveStyle({ color });
+    expect(screen.getByText('bold')).toHaveStyle({ fontWeight: 'bold' });
+    expect(screen.getByText('italic')).toHaveStyle({ fontStyle: 'italic' });
+    expect(screen.getByText('inline')).toHaveStyle({ fontFamily: 'monospace' });
+    expect(screen.getByTestId('run-detail-result')).toHaveTextContent(/• First/);
+    expect(screen.getByTestId('run-detail-result')).toHaveTextContent(/3\. Third/);
+    expect(screen.getByText('Quoted')).toBeTruthy();
+    expect(screen.getByText('const result = 1;')).toHaveStyle({ fontFamily: 'monospace' });
+    expect(screen.getByText('Chart')).toBeTruthy();
+    expect(screen.container.queryAll((node) => /Image/.test(node.type))).toHaveLength(0);
+    for (const node of screen.container.queryAll((node) => /Text/.test(node.type))) {
+      expect(node.props.allowFontScaling).not.toBe(false);
+    }
+    expect(screen.getByText('<div>Raw HTML</div>')).toBeTruthy();
+    const link = screen.getByRole('link', { name: 'Read more, opens in browser' });
+    expect(link.props.testID).toBeTruthy();
+    await fireEvent.press(link);
+    expect(open).toHaveBeenCalledWith('https://example.test/docs');
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('run-detail-result-toggle')).toBeNull();
+  },
+);
