@@ -1,18 +1,15 @@
+import { Badge } from '../../components/ui/badge';
+import { Progress } from '../../components/ui/progress';
+import { Spinner } from '../../components/ui/spinner';
+import { Box } from '../../components/ui/box';
+import { Text } from '../../components/ui/text';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+import { RefreshControl, ScrollView } from 'react-native';
 import { ExternalLink, TextButton } from '../../src/ui/interactions';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
-import { styles, useColors } from '../../src/navigation/styles';
+import { useColors } from '../../src/navigation/styles';
 import { LiveIndicator } from '../../src/runs/LiveIndicator';
 import { MarkdownResult } from '../../src/runs/MarkdownResult';
 import { RunRow } from '../../src/runs/RunRow';
@@ -23,7 +20,6 @@ import {
   relativeTime,
   spendLevel,
 } from '../../src/runs/format';
-import { statusStyle } from '../../src/runs/status';
 import { useRunDetail } from '../../src/runs/useRunDetail';
 
 export default function RunDetail() {
@@ -35,7 +31,6 @@ function RunDetailContent({ id }: { id: string }) {
   const { run, loading, error, refetch } = useRunDetail(id);
   const { graph } = useLiveGraph();
   const colors = useColors();
-  const dark = useColorScheme() === 'dark';
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (run?.status !== 'running' || run.finishedAt) return;
@@ -43,17 +38,22 @@ function RunDetailContent({ id }: { id: string }) {
     return () => clearInterval(timer);
   }, [run?.status, run?.finishedAt]);
   const back = () => router.replace('/');
-  const textStyle = [styles.text, { color: colors.text }];
+  const textStyle = [{ fontSize: 17, color: colors.text }];
   const button = (label: string, testID: string, onPress: () => void) => (
-    <TextButton testID={testID} label={label} onPress={onPress} style={styles.button} />
+    <TextButton
+      testID={testID}
+      label={label}
+      onPress={onPress}
+      className="border rounded-lg p-3.5 items-center"
+    />
   );
   const section = (label: string, testID: string, children: ReactNode) => (
-    <View testID={testID} style={styles.section}>
-      <Text accessibilityRole="header" style={[styles.label, { color: colors.muted }]}>
+    <Box testID={testID} className="gap-3">
+      <Text accessibilityRole="header" className="text-[13px]" style={[{ color: colors.muted }]}>
         {label}
       </Text>
       {children}
-    </View>
+    </Box>
   );
   const header = (
     <Stack.Screen
@@ -75,29 +75,29 @@ function RunDetailContent({ id }: { id: string }) {
     return (
       <SafeAreaView
         edges={['left', 'right', 'bottom']}
-        style={[styles.placeholder, { backgroundColor: colors.background }]}
+        className="flex-1 items-center justify-center gap-2 p-6"
+        style={[{ backgroundColor: colors.background }]}
       >
         {header}
         {loading ? (
-          <View testID="run-detail-loading" style={local.center}>
-            <ActivityIndicator />
+          <Box testID="run-detail-loading" className="items-center gap-4">
+            <Spinner />
             <Text style={textStyle}>Loading run…</Text>
-          </View>
+          </Box>
         ) : error?.code === 'not_found' ? (
-          <View testID="run-detail-not-found" style={local.center}>
+          <Box testID="run-detail-not-found" className="items-center gap-4">
             <Text style={textStyle}>{"This run isn't available any more."}</Text>
             {button('Back to runs', 'run-detail-back', back)}
-          </View>
+          </Box>
         ) : (
-          <View style={local.center}>
+          <Box className="items-center gap-4">
             <Text style={textStyle}>{"Couldn't load this run."}</Text>
             {button('Retry', 'run-detail-retry', () => void refetch())}
-          </View>
+          </Box>
         )}
       </SafeAreaView>
     );
-  const pill = statusStyle(run.status);
-  const tone = dark ? pill.dark : pill.light;
+
   const cost = formatCost(run.costUsd);
   const budget = formatCost(run.budgetUsd);
   const level = spendLevel(run.costUsd, run.budgetUsd, run.status);
@@ -111,12 +111,13 @@ function RunDetailContent({ id }: { id: string }) {
   return (
     <SafeAreaView
       edges={['left', 'right', 'bottom']}
-      style={[styles.screen, { backgroundColor: colors.background }]}
+      className="flex-1"
+      style={[{ backgroundColor: colors.background }]}
     >
       {header}
       <ScrollView
         testID="run-detail"
-        contentContainerStyle={styles.content}
+        contentContainerClassName="p-6 gap-8"
         refreshControl={
           <RefreshControl
             testID="run-detail-refresh"
@@ -126,14 +127,18 @@ function RunDetailContent({ id }: { id: string }) {
           />
         }
       >
-        <View style={styles.section}>
-          <View
+        <Box className="gap-3">
+          <Badge
             testID="run-detail-status"
-            style={[local.pill, { backgroundColor: tone.background }]}
+            status={run.status}
+            className="self-start px-3.5 py-2 rounded-[18px]"
+            textStyle={{ fontSize: 20, fontWeight: '600' }}
+          />
+          <Text
+            testID="run-detail-elapsed"
+            className="text-[17px]"
+            style={[{ color: colors.muted }]}
           >
-            <Text style={[local.status, { color: tone.text }]}>{pill.label}</Text>
-          </View>
-          <Text testID="run-detail-elapsed" style={[styles.text, { color: colors.muted }]}>
             Started {relativeTime(run.startedAt, now)}
             {run.finishedAt
               ? ` · Took ${formatDuration(Date.parse(run.finishedAt) - Date.parse(run.startedAt))}`
@@ -147,7 +152,7 @@ function RunDetailContent({ id }: { id: string }) {
               ? ` · ${run.codingProvider === 'claude' ? 'claude-code' : (run.codingProvider ?? run.coding.provider)}`
               : ''}
           </Text>
-        </View>
+        </Box>
         {section(
           'SPEND',
           'run-detail-spend',
@@ -155,25 +160,13 @@ function RunDetailContent({ id }: { id: string }) {
             <Text style={textStyle}>
               {cost} of {budget}
             </Text>
-            <View
+            <Progress
               testID="run-detail-spend-bar"
-              accessible
-              accessibilityRole="progressbar"
+              ratio={ratio}
+              level={level}
               accessibilityLabel={`Spent ${cost} of ${budget}`}
               accessibilityValue={{ min: 0, max: run.budgetUsd, now: run.costUsd }}
-              style={[local.bar, { backgroundColor: dark ? '#374151' : '#e5e7eb' }]}
-            >
-              <View
-                style={[
-                  local.fill,
-                  {
-                    width: `${ratio * 100}%`,
-                    backgroundColor:
-                      level === 'over' ? '#ff3b30' : level === 'warn' ? '#ff9f0a' : '#34c759',
-                  },
-                ]}
-              />
-            </View>
+            />
             <Text testID="run-detail-tokens" style={textStyle}>
               {run.turns} turns · {formatCount(run.tokensIn)} in · {formatCount(run.tokensOut)} out
             </Text>
@@ -189,7 +182,7 @@ function RunDetailContent({ id }: { id: string }) {
                 {run.coding.baseRef} → {run.coding.headRef}
               </Text>
               {run.coding.failureCategory && (
-                <Text style={[styles.text, { color: colors.destructive }]}>
+                <Text className="text-[17px]" style={[{ color: colors.destructive }]}>
                   {run.coding.failureCategory}
                 </Text>
               )}
@@ -220,14 +213,14 @@ function RunDetailContent({ id }: { id: string }) {
                 testID: `run-outcome-${index}`,
                 accessible: true,
                 accessibilityLabel: `${accessibleLabel}${url ? ', opens in browser' : ''}`,
-                style: local.outcome,
+                className: 'py-3',
               };
               return url ? (
                 <ExternalLink key={index} {...props} label={label} url={url} />
               ) : (
-                <View key={index} {...props}>
+                <Box key={index} {...props}>
                   <Text style={textStyle}>{label}</Text>
-                </View>
+                </Box>
               );
             })
           ) : (
@@ -265,18 +258,11 @@ function RunDetailContent({ id }: { id: string }) {
           section(
             'ERROR',
             'run-detail-error',
-            <Text style={[styles.text, { color: colors.destructive }]}>{run.error}</Text>,
+            <Text className="text-[17px]" style={[{ color: colors.destructive }]}>
+              {run.error}
+            </Text>,
           )}
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const local = StyleSheet.create({
-  center: { alignItems: 'center', gap: 16 },
-  pill: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18 },
-  status: { fontSize: 20, fontWeight: '600' },
-  bar: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  fill: { height: '100%' },
-  outcome: { paddingVertical: 12 },
-});

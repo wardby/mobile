@@ -16,6 +16,9 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
+    "@gluestack-ui/core": "^5.0.15",
+    "@gluestack-ui/utils": "^5.0.6",
+    "@legendapp/motion": "^2.5.3",
     "expo": "~57.0.27",
     "expo-auth-session": "~57.0.14",
     "expo-constants": "~57.0.21",
@@ -25,13 +28,21 @@
     "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "expo-web-browser": "~57.0.3",
+    "lucide-react-native": "^1.56.0",
     "marked": "^18.1.1",
+    "nativewind": "^4.2.7",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
+    "react-native-css-interop": "^0.2.7",
+    "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
-    "react-native-web": "~0.21.0"
+    "react-native-svg": "15.15.4",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.10.1",
+    "tailwind-variants": "^3.3.1",
+    "tailwindcss": "^3.4.17"
   },
   "devDependencies": {
     "@testing-library/react-native": "^14.1.0",
@@ -55,10 +66,19 @@
           "<rootDir>/__tests__/**/*.test.ts?(x)"
         ],
         "transformIgnorePatterns": [
-          "/node_modules/(?!(marked|.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation))",
+          "/node_modules/(?!(@gluestack-ui|@react-aria|@react-stately|nativewind|react-native-css-interop|lucide-react-native|marked|.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation))",
           "/node_modules/react-native-reanimated/plugin/",
           "/node_modules/@react-native/babel-preset/"
-        ]
+        ],
+        "setupFilesAfterEnv": [
+          "<rootDir>/jest.setup.js"
+        ],
+        "transform": {
+          "^.+\\.(js|jsx|ts|tsx|mjs)$": "babel-jest"
+        },
+        "moduleNameMapper": {
+          "\\.css$": "<rootDir>/jest.css.js"
+        }
       },
       {
         "displayName": "api",
@@ -77,7 +97,8 @@
           ]
         }
       }
-    ]
+    ],
+    "testTimeout": 15000
   },
   "overrides": {
     "openapi-typescript": {

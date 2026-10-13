@@ -1,10 +1,15 @@
+import { ButtonGroup } from '../../components/ui/button';
+import { Divider } from '../../components/ui/divider';
+import { Spinner } from '../../components/ui/spinner';
+import { Box } from '../../components/ui/box';
+import { Text } from '../../components/ui/text';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextButton } from '../../src/ui/interactions';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
-import { styles as shared, useColors } from '../../src/navigation/styles';
+import { useColors } from '../../src/navigation/styles';
 import { rowHeight, RunRow } from '../../src/runs/RunRow';
 import type { RunStatus } from '../../src/runs/status';
 
@@ -60,9 +65,13 @@ export default function Runs() {
   return (
     <SafeAreaView
       edges={['left', 'right']}
-      style={[shared.screen, { backgroundColor: colors.background }]}
+      className="flex-1"
+      style={[{ backgroundColor: colors.background }]}
     >
-      <View style={[styles.segments, { borderColor: colors.muted }]}>
+      <ButtonGroup
+        className="flex-row m-4 border rounded-lg overflow-hidden"
+        style={{ borderColor: colors.muted, borderWidth: StyleSheet.hairlineWidth }}
+      >
         {filters.map((item) => {
           const active = item.key === filter;
           return (
@@ -71,17 +80,19 @@ export default function Runs() {
               testID={`runs-filter-${item.key}`}
               label={item.label}
               accessibilityState={{ selected: active }}
-              style={styles.segment}
+              className="flex-1 py-2 items-center"
               onPress={() => setFilter(item.key)}
             />
           );
         })}
-      </View>
+      </ButtonGroup>
       {graph === null ? (
-        <View testID="runs-loading" style={shared.placeholder}>
-          <ActivityIndicator accessibilityLabel="Loading runs" />
-          <Text style={[shared.text, { color: colors.muted }]}>Loading runs…</Text>
-        </View>
+        <Box testID="runs-loading" className="flex-1 items-center justify-center gap-2 p-6">
+          <Spinner accessibilityLabel="Loading runs" />
+          <Text className="text-[17px]" style={[{ color: colors.muted }]}>
+            Loading runs…
+          </Text>
+        </Box>
       ) : (
         <FlatList
           testID="runs-list"
@@ -96,11 +107,13 @@ export default function Runs() {
               onPress={() => router.push({ pathname: '/runs/[id]', params: { id: item.id } })}
             />
           )}
-          ItemSeparatorComponent={() => (
-            <View style={[styles.separator, { backgroundColor: colors.muted }]} />
-          )}
+          ItemSeparatorComponent={() => <Divider className="ml-4" />}
           ListEmptyComponent={
-            <Text testID="runs-empty" style={[shared.text, styles.empty, { color: colors.muted }]}>
+            <Text
+              testID="runs-empty"
+              className="text-[17px] text-center p-6"
+              style={[{ color: colors.muted }]}
+            >
               {selected.empty}
             </Text>
           }
@@ -116,16 +129,3 @@ export default function Runs() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  segments: {
-    flexDirection: 'row',
-    margin: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  segment: { flex: 1, paddingVertical: 8, alignItems: 'center' },
-  separator: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
-  empty: { textAlign: 'center', padding: 24 },
-});

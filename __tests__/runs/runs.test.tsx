@@ -1,3 +1,4 @@
+import { theme } from '../../components/ui/theme';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { ExpoRoot, router } from 'expo-router';
 import { getMockContext } from 'expo-router/testing-library';
@@ -236,10 +237,10 @@ test('pill colours come from one table, with separate light and dark colours', (
 });
 
 test.each([
-  ['live', 'Live', '#34c759'],
-  ['reconnecting', 'Reconnecting', '#ff9f0a'],
-  ['connecting', 'Connecting', '#ff9f0a'],
-  ['offline', 'Offline', '#8e8e93'],
+  ['live', 'Live', theme.light.progress.ok],
+  ['reconnecting', 'Reconnecting', theme.light.progress.warn],
+  ['connecting', 'Connecting', theme.light.progress.warn],
+  ['offline', 'Offline', theme.light.offline],
 ] as const)('live indicator for %s shows %p with a %s dot', async (status, label, color) => {
   state.status = status;
   await render(app());

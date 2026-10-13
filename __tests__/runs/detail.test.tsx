@@ -1,3 +1,4 @@
+import { theme } from '../../components/ui/theme';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Linking } from 'react-native';
 import RunDetail from '../../app/runs/[id]';
@@ -159,17 +160,15 @@ test('live fields and timer update without fetching; outcomes and resync refetch
 });
 
 test.each([
-  [2.5, 'running', '#34c759'],
-  [4.25, 'running', '#ff9f0a'],
-  [5, 'running', '#ff3b30'],
-  [1, 'budget_exhausted', '#ff3b30'],
+  [2.5, 'running', theme.light.progress.ok],
+  [4.25, 'running', theme.light.progress.warn],
+  [5, 'running', theme.light.progress.over],
+  [1, 'budget_exhausted', theme.light.progress.over],
 ] as const)('spend bar %p %s', async (costUsd, status, backgroundColor) => {
   detail = { ...detail, costUsd, status };
   await setup();
   expect(screen.getByTestId('run-detail-spend-bar').props.children).toBeTruthy();
-  expect(screen.getByTestId('run-detail-spend-bar').props.children.props.style).toEqual(
-    expect.arrayContaining([expect.objectContaining({ backgroundColor })]),
-  );
+  expect(screen.getByTestId('run-detail-spend-bar-fill')).toHaveStyle({ backgroundColor });
 });
 
 test('native run hides code, empty outcomes, children navigate, refresh fetches', async () => {
@@ -351,7 +350,7 @@ test('result toggle uses an accent disclosure with a 44pt target and pressed fee
   });
   const toggle = screen.getByTestId('run-detail-result-toggle');
   expect(toggle).toHaveStyle({ minHeight: 44, minWidth: 44 });
-  expect(screen.getByText('Show more')).toHaveStyle({ color: '#0066cc' });
+  expect(screen.getByText('Show more')).toHaveStyle({ color: theme.light.tint });
   expect(toggle).toHaveTextContent(/▾/);
   expect(toggle).toHaveProp('accessibilityState', { disabled: false, expanded: false });
   const event = { persist: jest.fn(), nativeEvent: { pageX: 0, pageY: 0 } };
@@ -363,14 +362,14 @@ test('result toggle uses an accent disclosure with a 44pt target and pressed fee
   expect(toggle).toHaveProp('accessibilityLabel', 'Show less');
   expect(toggle).toHaveTextContent(/▴/);
   expect(toggle).toHaveProp('accessibilityState', { disabled: false, expanded: true });
-  expect(screen.getByText('Show less')).toHaveStyle({ color: '#0066cc' });
+  expect(screen.getByText('Show less')).toHaveStyle({ color: theme.light.tint });
   await fireEvent.press(toggle);
   expect(toggle).toHaveProp('accessibilityLabel', 'Show more');
   expect(toggle).toHaveTextContent(/▾/);
   expect(toggle).toHaveProp('accessibilityState', { disabled: false, expanded: false });
 });
 
-test.each(['#0066cc', '#66b2ff'])(
+test.each([theme.light.tint, theme.dark.tint])(
   'inline markdown link uses accent %s and pressed feedback',
   async (tint) => {
     jest.spyOn(palette, 'useColors').mockReturnValue({

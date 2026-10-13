@@ -1,9 +1,11 @@
+import { Box } from '../../components/ui/box';
+import { Text } from '../../components/ui/text';
 import Constants from 'expo-constants';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextButton } from '../../src/ui/interactions';
 import { useSession } from '../../src/auth/session';
-import { styles, useColors } from '../../src/navigation/styles';
+import { useColors } from '../../src/navigation/styles';
 
 export default function Settings() {
   const auth = useSession();
@@ -24,30 +26,42 @@ export default function Settings() {
   return (
     <SafeAreaView
       edges={['left', 'right']}
-      style={[styles.screen, { backgroundColor: colors.background }]}
+      className="flex-1"
+      style={[{ backgroundColor: colors.background }]}
     >
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.muted }]}>SERVER</Text>
-          <Text testID="settings-host" style={[styles.text, { color: colors.text }]}>
+      <ScrollView contentContainerClassName="p-6 gap-8">
+        <Box className="gap-3">
+          <Text className="text-[13px]" style={[{ color: colors.muted }]}>
+            SERVER
+          </Text>
+          <Text testID="settings-host" className="text-[17px]" style={[{ color: colors.text }]}>
             {host}
           </Text>
-        </View>
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.muted }]}>APP</Text>
-          <View style={styles.row}>
-            <Text style={[styles.text, { color: colors.text }]}>Version</Text>
-            <Text testID="settings-version" style={[styles.text, { color: colors.text }]}>
+        </Box>
+        <Box className="gap-3">
+          <Text className="text-[13px]" style={[{ color: colors.muted }]}>
+            APP
+          </Text>
+          <Box className="flex-row justify-between gap-4">
+            <Text className="text-[17px]" style={[{ color: colors.text }]}>
+              Version
+            </Text>
+            <Text
+              testID="settings-version"
+              className="text-[17px]"
+              style={[{ color: colors.text }]}
+            >
               {Constants.expoConfig?.version}
             </Text>
-          </View>
-        </View>
+          </Box>
+        </Box>
         <TextButton
           testID="settings-sign-out"
           accessibilityLabel="Sign out"
           label="Sign out"
           destructive
-          style={[styles.button, { borderColor: colors.destructive }]}
+          className="border rounded-lg p-3.5 items-center"
+          style={[{ borderColor: colors.destructive }]}
           onPress={confirmSignOut}
         />
       </ScrollView>
