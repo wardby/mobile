@@ -12,6 +12,12 @@ import Settings from '../app/(tabs)/settings';
 import { useSession } from '../src/auth/session';
 import { openEventStream } from '../src/live/stream';
 
+jest.mock('../src/api/client', () => ({
+  ...jest.requireActual('../src/api/client'),
+  createApiClient: () => ({
+    getGraph: async () => jest.requireActual('../src/api/__fixtures__/graph.json'),
+  }),
+}));
 jest.mock('@expo/vector-icons/Ionicons', () => {
   const { Text } = jest.requireActual('react-native');
   return {
@@ -79,7 +85,7 @@ test('session invalidation from Spend opens Connect and clears signed-in history
   await result.rerender(app());
   expect(screen.getByTestId('connect-host')).toBeTruthy();
   expect(router.canGoBack()).toBe(false);
-  expect(screen.queryByTestId('spend-placeholder')).toBeNull();
+  expect(screen.queryByTestId('spend-period-week')).toBeNull();
 });
 test.each(['light', 'dark'] as const)(
   'tabs switch between labelled screens in %s mode',
@@ -94,7 +100,7 @@ test.each(['light', 'dark'] as const)(
     }
     expect(screen.getByTestId('runs-loading')).toHaveTextContent('Loading runs…');
     await fireEvent.press(screen.getByTestId('tab-spend'));
-    expect(screen.getByTestId('spend-placeholder')).toHaveTextContent('SpendComing soon.');
+    expect(screen.getByTestId('spend-period-week')).toHaveTextContent('This week');
     await fireEvent.press(screen.getByTestId('tab-settings'));
     expect(screen.getByTestId('settings-host')).toHaveTextContent('server.example');
     expect(screen.getByTestId('settings-version')).toHaveTextContent('1.0.0');

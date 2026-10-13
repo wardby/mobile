@@ -21,6 +21,12 @@ import { statusStyle } from '../../src/runs/status';
 type Graph = components['schemas']['graph-snapshot'];
 type Run = Graph['runs'][number];
 
+jest.mock('../../src/api/client', () => ({
+  ...jest.requireActual('../../src/api/client'),
+  createApiClient: () => ({
+    getGraph: async () => jest.requireActual('../../src/api/__fixtures__/graph.json'),
+  }),
+}));
 jest.mock('../../src/auth/session', () => ({
   useSession: jest.fn(),
   session: {
@@ -192,7 +198,7 @@ test('the selected filter survives a tab switch', async () => {
   await render(app());
   await filtered('failed', ['broken']);
   await fireEvent.press(screen.getByTestId('tab-spend'));
-  expect(screen.getByTestId('spend-placeholder')).toBeTruthy();
+  expect(screen.getByTestId('spend-period-week')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('tab-runs'));
   expect(screen.getByTestId('runs-filter-failed')).toHaveProp(
     'accessibilityState',
