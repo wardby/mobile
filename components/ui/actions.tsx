@@ -74,9 +74,12 @@ export function TextButton({
         disabled: !!props.disabled,
         ...(expanded === undefined ? {} : { expanded }),
       }}
-      className={cn(`flex-row items-center gap-2 justify-center px-2`, className)}
+      className={cn(
+        `flex-row items-center gap-2 justify-center px-2`,
+        selectedFill && accessibilityState?.selected && 'bg-accent',
+        className,
+      )}
       style={(state) => [
-        selectedFill && accessibilityState?.selected && { backgroundColor: colors.tint },
         accessibilityState?.selected && { borderBottomWidth: 2, borderBottomColor: colors.tint },
         typeof style === 'function' ? style(state) : style,
       ]}

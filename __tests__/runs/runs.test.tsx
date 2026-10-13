@@ -323,7 +323,7 @@ test('shows the default range, range empty wording and a filled selected status'
   await render(app());
   expect(screen.getByTestId('runs-range')).toHaveTextContent(/24h/);
   expect(screen.getByTestId('runs-empty')).toHaveTextContent('No runs in the last 24 hours.');
-  expect(screen.getByTestId('runs-filter-all')).toHaveStyle({ backgroundColor: theme.light.tint });
+  expect(screen.getByTestId('runs-filter-all').props.className).toContain('bg-accent');
 });
 test('prunes rows at the selected window boundary without a request', async () => {
   state.graph = graphOf([run('aging', { startedAt: minutes(24 * 60 - 1) })]);
@@ -375,8 +375,18 @@ test.each(['light', 'dark'] as const)(
     expect(screen.getByTestId('runs-range')).toHaveTextContent(/6h/);
     await fireEvent.press(screen.getByTestId('runs-widen'));
     expect(screen.getByTestId('runs-range')).toHaveTextContent(/24h/);
-    expect(screen.getByTestId('runs-filter-all')).toHaveStyle({
-      backgroundColor: theme[mode].tint,
-    });
+    expect(screen.getByTestId('runs-filter-all').props.className).toContain('bg-accent');
   },
 );
+
+test('only the selected filter has an accent fill', async () => {
+  await render(app());
+  for (const selected of ['all', 'running', 'failed']) {
+    await fireEvent.press(screen.getByTestId(`runs-filter-${selected}`));
+    for (const filter of ['all', 'running', 'failed']) {
+      const className = screen.getByTestId(`runs-filter-${filter}`).props.className;
+      if (filter === selected) expect(className).toContain('bg-accent');
+      else expect(className).not.toContain('bg-accent');
+    }
+  }
+});
