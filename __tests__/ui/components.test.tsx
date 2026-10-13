@@ -1,6 +1,6 @@
 import { cssInterop, StyleSheet as InteropStyleSheet } from 'nativewind';
 import { cssToReactNativeRuntime } from 'react-native-css-interop/css-to-rn';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import * as Native from 'react-native';
 import { GluestackUIProvider } from '../../components/ui/provider';
 import { theme, statusTokens } from '../../components/ui/theme';
@@ -25,6 +25,12 @@ beforeAll(() => {
   );
 });
 afterEach(() => jest.restoreAllMocks());
+beforeEach(() => {
+  jest
+    .spyOn(Native.AccessibilityInfo, 'isReduceMotionEnabled')
+    .mockClear()
+    .mockResolvedValue(false);
+});
 
 function Sample() {
   const colors = useColors();
@@ -56,6 +62,28 @@ test.each(['light', 'dark'] as const)('provider follows the system in %s mode', 
 });
 
 describe.each(['light', 'dark'] as const)('%s status badges', (mode) => {
+  test('running has a non-interactive ring outside the pill', async () => {
+    jest.spyOn(Native, 'useColorScheme').mockReturnValue(mode);
+    await render(
+      <GluestackUIProvider>
+        <Badge testID="badge" status="running" />
+      </GluestackUIProvider>,
+    );
+    const ring = screen.getByTestId('badge-pulse');
+    expect(ring).toHaveStyle({
+      position: 'absolute',
+      top: -4,
+      left: -4,
+      right: -4,
+      bottom: -4,
+      borderRadius: 999,
+      borderWidth: 4,
+      borderColor: statusTokens.blue[mode].text,
+    });
+    expect(ring).toHaveProp('pointerEvents', 'none');
+    expect(ring).toHaveProp('accessible', false);
+  });
+
   test.each([
     ['running', 'Running', 'blue'],
     ['pending', 'Queued', 'blue'],
@@ -79,6 +107,63 @@ describe.each(['light', 'dark'] as const)('%s status badges', (mode) => {
     });
     expect(screen.getByText(label)).toHaveStyle({ color: statusTokens[tone][mode].text });
   });
+});
+
+test.each(['pending', 'succeeded'] as const)('%s has no pulse ring', async (status) => {
+  await render(<Badge testID="badge" status={status} />);
+  expect(screen.queryByTestId('badge-pulse')).toBeNull();
+});
+
+test('Reduce Motion suppresses the running pulse', async () => {
+  jest.spyOn(Native.AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+  await render(<Badge testID="badge" status="running" />);
+  expect(Native.AccessibilityInfo.isReduceMotionEnabled).toHaveBeenCalled();
+  expect(screen.queryByTestId('badge-pulse')).toBeNull();
+});
+
+test('enabling Reduce Motion removes the pulse and cleans up the listener', async () => {
+  const subscription = Native.AccessibilityInfo.addEventListener('reduceMotionChanged', () => {});
+  const remove = jest.spyOn(subscription, 'remove');
+  const listen = jest
+    .spyOn(Native.AccessibilityInfo, 'addEventListener')
+    .mockClear()
+    .mockReturnValue(subscription);
+  const view = await render(<Badge testID="badge" status="running" />);
+  expect(screen.getByTestId('badge-pulse')).toBeTruthy();
+  expect(listen).toHaveBeenCalledWith('reduceMotionChanged', expect.any(Function));
+  const onChange = listen.mock.calls[0][1] as unknown as (enabled: boolean) => void;
+  await act(() => onChange(true));
+  expect(screen.queryByTestId('badge-pulse')).toBeNull();
+  await view.unmount();
+  expect(remove).toHaveBeenCalled();
+});
+
+test('running pulse loops two eased native one-second halves and stops on unmount', async () => {
+  const start = jest.fn();
+  const stop = jest.fn();
+  const loop = jest.spyOn(Native.Animated, 'loop').mockReturnValue({
+    start,
+    stop,
+    reset: jest.fn(),
+  });
+  const timing = jest.spyOn(Native.Animated, 'timing');
+  const view = await render(<Badge testID="badge" status="running" />);
+  expect(timing).toHaveBeenCalledTimes(2);
+  for (const [index, toValue] of [0.35, 0].entries()) {
+    expect(timing.mock.calls[index][1]).toEqual({
+      toValue,
+      duration: 1000,
+      easing: expect.any(Function),
+      useNativeDriver: true,
+    });
+    expect(timing.mock.calls[index][1].easing!(0.25)).toBeCloseTo(
+      Native.Easing.inOut(Native.Easing.ease)(0.25),
+    );
+  }
+  expect(loop).toHaveBeenCalledTimes(1);
+  expect(start).toHaveBeenCalledTimes(1);
+  await view.unmount();
+  expect(stop).toHaveBeenCalledTimes(1);
 });
 
 test('Link exposes its browser semantics and opens the URL', async () => {
