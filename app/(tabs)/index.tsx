@@ -7,7 +7,7 @@ import { Box } from '../../components/ui/box';
 import { Text } from '../../components/ui/text';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { AppState, FlatList, RefreshControl, ScrollView, StyleSheet } from 'react-native';
+import { AppState, FlatList, RefreshControl, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextButton } from '../../src/ui/interactions';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
@@ -89,19 +89,9 @@ export default function Runs() {
       className="flex-1"
       style={[{ backgroundColor: colors.background }]}
     >
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0, flexShrink: 0 }}
-        contentContainerStyle={{
-          alignItems: 'center',
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          gap: 8,
-        }}
-      >
+      <Box className="flex-row items-center gap-2 px-4 py-3">
         <ButtonGroup
-          className="flex-row border rounded-lg overflow-hidden"
+          className="flex-1 flex-row border rounded-lg overflow-hidden"
           style={{ borderColor: colors.muted, borderWidth: StyleSheet.hairlineWidth }}
         >
           {filters.map((item) => {
@@ -113,7 +103,7 @@ export default function Runs() {
                 label={item.label}
                 selectedFill
                 accessibilityState={{ selected: active }}
-                className="py-2 items-center"
+                className="flex-1 py-2 items-center"
                 onPress={() => setFilter(item.key)}
               />
             );
@@ -157,7 +147,7 @@ export default function Runs() {
             </Menu.Item>
           ))}
         </Menu>
-      </ScrollView>
+      </Box>
       {graph === null ? (
         <Box testID="runs-loading" className="flex-1 items-center justify-center gap-2 p-6">
           <Spinner accessibilityLabel="Loading runs" />
