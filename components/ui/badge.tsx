@@ -16,13 +16,10 @@ export function Badge({
   return (
     <Box
       {...props}
-      className={cn(`rounded-[10px] px-2 py-0.5 bg-status-${pill.tone}`, className)}
+      className={cn('rounded-[10px] px-2 py-0.5', className)}
       style={[{ backgroundColor: colors.background }, style]}
     >
-      <Text
-        className={`text-status-${pill.tone}-text`}
-        style={[{ fontSize: 13, fontWeight: '600', color: colors.text }, textStyle]}
-      >
+      <Text style={[{ fontSize: 13, fontWeight: '600', color: colors.text }, textStyle]}>
         {pill.label}
       </Text>
     </Box>

@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import { useColorScheme, View } from 'react-native';
+import { Platform, PlatformColor, useColorScheme, View } from 'react-native';
 import { vars } from 'nativewind';
 import { theme, themeVariables, type Mode } from './theme';
 
@@ -10,7 +10,28 @@ export function useThemeMode(): Mode {
   return provided ?? (system === 'dark' ? 'dark' : 'light');
 }
 export function useTheme() {
-  return theme[useThemeMode()];
+  const colors = theme[useThemeMode()];
+  if (Platform.OS === 'ios') {
+    return {
+      ...colors,
+      background: PlatformColor('systemBackground'),
+      text: PlatformColor('label'),
+      muted: PlatformColor('secondaryLabel'),
+      border: PlatformColor('secondaryLabel'),
+      destructive: PlatformColor('systemRed'),
+    };
+  }
+  if (Platform.OS === 'android') {
+    return {
+      ...colors,
+      background: PlatformColor('?android:attr/colorBackground'),
+      text: PlatformColor('?android:attr/textColorPrimary'),
+      muted: PlatformColor('?android:attr/textColorSecondary'),
+      border: PlatformColor('?android:attr/textColorSecondary'),
+      destructive: PlatformColor('?android:attr/colorError'),
+    };
+  }
+  return colors;
 }
 
 export function GluestackUIProvider({ children }: { children: ReactNode }) {

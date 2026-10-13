@@ -17,7 +17,7 @@ export function Progress({
       value={ratio * 100}
       {...props}
       accessibilityRole="progressbar"
-      className="h-2 overflow-hidden rounded bg-status-grey"
+      className="h-2 overflow-hidden rounded"
       style={[
         {
           height: 8,
@@ -30,7 +30,7 @@ export function Progress({
     >
       <Box
         testID={props.testID ? `${props.testID}-fill` : undefined}
-        className={`h-full bg-progress-${level}`}
+        className="h-full"
         style={[
           {
             height: '100%',

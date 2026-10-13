@@ -5,7 +5,6 @@ export function Divider({ style, ...props }: ViewProps) {
   const colors = useTheme();
   return (
     <Box
-      className="bg-muted"
       {...props}
       style={[{ height: StyleSheet.hairlineWidth, backgroundColor: colors.muted }, style]}
     />

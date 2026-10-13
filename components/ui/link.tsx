@@ -28,7 +28,7 @@ export function Link({
       className={cn(`flex-row items-center gap-2`, className)}
       style={(state) => [typeof style === 'function' ? style(state) : style]}
     >
-      <Text className="text-accent text-[17px] font-semibold shrink" style={{ color: colors.tint }}>
+      <Text className="text-[17px] font-semibold shrink" style={{ color: colors.tint }}>
         {label}
       </Text>
       <Text accessible={false} className="sr-only" style={{ display: 'none' }}>

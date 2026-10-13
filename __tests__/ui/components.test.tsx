@@ -46,7 +46,7 @@ test.each(['light', 'dark'] as const)('provider follows the system in %s mode', 
       <Sample />
     </GluestackUIProvider>,
   );
-  expect(screen.getByTestId('sample')).toHaveStyle({ color: theme[mode].text });
+  expect(screen.getByTestId('sample')).toHaveStyle({ color: Native.PlatformColor('label') });
   expect(
     Native.processColor(
       Native.StyleSheet.flatten(screen.getByTestId('token-sample').props.style).color,
