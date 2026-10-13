@@ -6,6 +6,7 @@ import { GluestackUIProvider } from '../../components/ui/provider';
 import { theme, statusTokens } from '../../components/ui/theme';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
+import { TextButton } from '../../components/ui/actions';
 import { Link } from '../../components/ui/link';
 import { Progress } from '../../components/ui/progress';
 import { Text } from '../../components/ui/text';
@@ -111,6 +112,25 @@ test('Button preserves pressed feedback, target size and disabled state', async 
   expect(screen.getByTestId('button')).toHaveStyle({ opacity: 0.5 });
   await fireEvent.press(screen.getByTestId('button'));
   expect(press).not.toHaveBeenCalled();
+});
+
+test.each([true, false])(
+  'TextButton selectedFill keeps its label on one line (selected: %s)',
+  async (selected) => {
+    await render(
+      <TextButton testID="filter" label="Running" selectedFill accessibilityState={{ selected }} />,
+    );
+    expect(screen.getByText('Running')).toHaveProp('numberOfLines', 1);
+    expect(screen.getByText('Running')).toHaveProp('adjustsFontSizeToFit', true);
+    expect(screen.getByText('Running')).toHaveProp('minimumFontScale', 0.7);
+  },
+);
+
+test('TextButton without selectedFill keeps its label wrapping', async () => {
+  await render(<TextButton testID="range" label="Show last 24 hours" />);
+  expect(screen.getByText('Show last 24 hours').props.numberOfLines).toBeUndefined();
+  expect(screen.getByText('Show last 24 hours').props.adjustsFontSizeToFit).toBeUndefined();
+  expect(screen.getByText('Show last 24 hours').props.minimumFontScale).toBeUndefined();
 });
 
 test.each(['ok', 'warn', 'over'] as const)('Progress uses the %s level token', async (level) => {
