@@ -1,7 +1,9 @@
 import { Box } from '../../components/ui/box';
+import { ButtonGroup } from '../../components/ui/button';
+import { useAppearance } from '../../src/settings/appearance';
 import { Text } from '../../components/ui/text';
 import Constants from 'expo-constants';
-import { Alert, ScrollView } from 'react-native';
+import { Alert, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextButton } from '../../src/ui/interactions';
 import { useSession } from '../../src/auth/session';
@@ -9,6 +11,7 @@ import { useColors } from '../../src/navigation/styles';
 
 export default function Settings() {
   const auth = useSession();
+  const { setting, setSetting } = useAppearance();
   const colors = useColors();
   const host = auth.host ? new URL(auth.host).host : '';
   function confirmSignOut() {
@@ -37,6 +40,28 @@ export default function Settings() {
           <Text testID="settings-host" className="text-[17px]" style={[{ color: colors.text }]}>
             {host}
           </Text>
+        </Box>
+        <Box className="gap-3">
+          <Text className="text-[13px]" style={[{ color: colors.muted }]}>
+            APPEARANCE
+          </Text>
+          <ButtonGroup
+            testID="settings-appearance"
+            accessibilityLabel="Appearance"
+            className="flex-row border rounded-lg overflow-hidden"
+            style={{ borderColor: colors.muted, borderWidth: StyleSheet.hairlineWidth }}
+          >
+            {(['system', 'light', 'dark'] as const).map((option) => (
+              <TextButton
+                key={option}
+                testID={`settings-appearance-${option}`}
+                label={option[0].toUpperCase() + option.slice(1)}
+                accessibilityState={{ selected: setting === option }}
+                className="flex-1 py-2 items-center"
+                onPress={() => setSetting(option)}
+              />
+            ))}
+          </ButtonGroup>
         </Box>
         <Box className="gap-3">
           <Text className="text-[13px]" style={[{ color: colors.muted }]}>

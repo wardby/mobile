@@ -1,4 +1,6 @@
 import '../global.css';
+import { useEffect, useState } from 'react';
+import { initializeAppearance } from '../src/settings/appearance';
 import { GluestackUIProvider, useTheme } from '../components/ui/provider';
 import { Stack } from 'expo-router';
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
@@ -8,9 +10,13 @@ import { useSession } from '../src/auth/session';
 
 export default function RootLayout() {
   const auth = useSession();
+  const [appearanceReady, setAppearanceReady] = useState(false);
+  useEffect(() => {
+    void initializeAppearance().then(() => setAppearanceReady(true));
+  }, []);
   const colors = useTheme();
   const dark = useColorScheme() === 'dark';
-  if (!auth.ready) return null;
+  if (!auth.ready || !appearanceReady) return null;
   return (
     <GluestackUIProvider>
       <ThemeProvider

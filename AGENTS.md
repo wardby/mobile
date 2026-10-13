@@ -99,6 +99,8 @@ vendored contract.
 
 ## UI
 
+- The app's light/dark mode comes from `src/settings/appearance.ts` (`Appearance.setColorScheme`); never read or override the scheme anywhere else.
+
 - New UI uses the gluestack components in `components/ui/` and Tailwind `className` for layout, spacing and typography. Colours come from `useColors()`/`statusStyle()` inline styles backed by the single theme, including native platform colours. Don't use ad-hoc `StyleSheet` colours.
 - Use the accent colour only for interactive elements.
 - Add component files by hand under `components/ui/`; don't use the gluestack CLI.
