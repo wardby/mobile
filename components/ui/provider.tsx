@@ -1,3 +1,4 @@
+import { OverlayProvider } from '@gluestack-ui/core/overlay/creator';
 import { createContext, useContext, type ReactNode } from 'react';
 import { Platform, PlatformColor, useColorScheme, View } from 'react-native';
 import { vars } from 'nativewind';
@@ -38,7 +39,9 @@ export function GluestackUIProvider({ children }: { children: ReactNode }) {
   const mode = useColorScheme() === 'dark' ? 'dark' : 'light';
   return (
     <ThemeContext.Provider value={mode}>
-      <View style={[{ flex: 1 }, vars(themeVariables(mode))]}>{children}</View>
+      <OverlayProvider>
+        <View style={[{ flex: 1 }, vars(themeVariables(mode))]}>{children}</View>
+      </OverlayProvider>
     </ThemeContext.Provider>
   );
 }

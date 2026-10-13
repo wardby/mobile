@@ -58,6 +58,8 @@ beforeEach(() => {
     lastUpdated: null,
     resyncVersion: 0,
     refresh: jest.fn(),
+    range: '24h',
+    setRange: jest.fn(),
   } as ReturnType<typeof useLiveGraph>;
   (useLiveGraph as jest.Mock).mockImplementation(() => live);
 });
