@@ -56,6 +56,7 @@ export default function Settings() {
                 key={option}
                 testID={`settings-appearance-${option}`}
                 label={option[0].toUpperCase() + option.slice(1)}
+                selectedFill
                 accessibilityState={{ selected: setting === option }}
                 className="flex-1 py-2 items-center"
                 onPress={() => setSetting(option)}

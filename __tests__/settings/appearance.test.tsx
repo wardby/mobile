@@ -82,6 +82,31 @@ test('Settings restores the saved choice and applies, saves and shares changes i
   expect(Appearance.setColorScheme).toHaveBeenLastCalledWith('unspecified');
 });
 
+test('Settings fills only the selected appearance and moves the fill immediately', async () => {
+  const screen = await render(<Settings />);
+  expect(screen.getByTestId('settings-appearance-system').props.className).toContain('bg-accent');
+  expect(screen.getByTestId('settings-appearance-light').props.className).not.toContain(
+    'bg-accent',
+  );
+  expect(screen.getByTestId('settings-appearance-dark').props.className).not.toContain('bg-accent');
+
+  await fireEvent.press(screen.getByTestId('settings-appearance-dark'));
+  expect(screen.getByTestId('settings-appearance-dark').props.className).toContain('bg-accent');
+  expect(screen.getByTestId('settings-appearance-system').props.className).not.toContain(
+    'bg-accent',
+  );
+  expect(screen.getByTestId('settings-appearance-light').props.className).not.toContain(
+    'bg-accent',
+  );
+
+  await fireEvent.press(screen.getByTestId('settings-appearance-light'));
+  expect(screen.getByTestId('settings-appearance-light').props.className).toContain('bg-accent');
+  expect(screen.getByTestId('settings-appearance-system').props.className).not.toContain(
+    'bg-accent',
+  );
+  expect(screen.getByTestId('settings-appearance-dark').props.className).not.toContain('bg-accent');
+});
+
 test('web can launch when Appearance has no native override API', () => {
   const native = Appearance.setColorScheme;
   Object.defineProperty(Appearance, 'setColorScheme', { value: undefined, configurable: true });
