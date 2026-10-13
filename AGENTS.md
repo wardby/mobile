@@ -96,3 +96,10 @@ vendored contract.
 - Use `NavigationRow` for full-row in-app navigation; only in-app navigation uses a trailing `›`.
 - Use `TextButton` for inline actions, filters and buttons. Pass `expanded` for disclosures to get the state and flipping indicator. Keep existing labels and testIDs.
 - Use `useColors().tint` only for interactive elements. The shared controls provide minimum 44×44 targets, pressed opacity and Android ripple; retain these when adding styles.
+
+## UI
+
+- New UI uses the gluestack components in `components/ui/` and theme tokens through Tailwind `className`. Don't use ad-hoc `StyleSheet` colours.
+- Use the accent colour only for interactive elements.
+- Add component files by hand under `components/ui/`; don't use the gluestack CLI.
+- Run the full `npm run export` whenever this setup changes.

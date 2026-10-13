@@ -1,6 +1,7 @@
+import { Text } from '../../components/ui/text';
 import { Tabs } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Text, useWindowDimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '../../src/navigation/styles';
 import { LiveIndicator } from '../../src/runs/LiveIndicator';

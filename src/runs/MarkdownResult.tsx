@@ -1,7 +1,9 @@
+import { Box } from '../../components/ui/box';
+import { Text } from '../../components/ui/text';
 import { marked, type Token, type Tokens } from 'marked';
 import { useMemo, useState, type ReactNode } from 'react';
-import { Linking, StyleSheet, Text, View } from 'react-native';
-import { styles, useColors } from '../navigation/styles';
+import { Linking, StyleSheet } from 'react-native';
+import { useColors } from '../navigation/styles';
 import { TextButton } from '../ui/interactions';
 
 function isSafeLink(href: string): boolean {
@@ -19,7 +21,7 @@ export function MarkdownResult({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
   const [height, setHeight] = useState(0);
   const [pressedLink, setPressedLink] = useState<string | null>(null);
-  const textStyle = [styles.text, { color: colors.text }];
+  const textStyle = [{ fontSize: 17, color: colors.text }];
   function renderTokens(items: Token[] = [], path = 'result'): ReactNode {
     return items.map((token, index) => {
       const key = `${path}-${index}`;
@@ -73,22 +75,26 @@ export function MarkdownResult({ text }: { text: string }) {
           );
         case 'blockquote':
           return (
-            <View key={key} style={[local.quote, { borderColor: colors.muted }]}>
+            <Box
+              key={key}
+              className="border-l-[3px] pl-3 gap-3"
+              style={[{ borderColor: colors.muted }]}
+            >
               {renderTokens(token.tokens, key)}
-            </View>
+            </Box>
           );
         case 'list':
           return (
-            <View key={key} style={local.blocks}>
+            <Box key={key} className="gap-3">
               {token.items.map((item: Tokens.ListItem, i: number) => (
-                <View key={i} style={local.listRow}>
+                <Box key={i} className="flex-row">
                   <Text style={textStyle}>
                     {token.ordered ? `${Number(token.start) + i}.` : '•'}{' '}
                   </Text>
-                  <View style={local.listBody}>{renderTokens(item.tokens, `${key}-${i}`)}</View>
-                </View>
+                  <Box className="flex-1 gap-3">{renderTokens(item.tokens, `${key}-${i}`)}</Box>
+                </Box>
               ))}
-            </View>
+            </Box>
           );
         case 'link':
           if (!isSafeLink(token.href)) {
@@ -148,15 +154,15 @@ export function MarkdownResult({ text }: { text: string }) {
   }
   return (
     <>
-      <View testID="run-detail-result-viewport" style={!expanded && local.collapsed}>
-        <View
+      <Box testID="run-detail-result-viewport" style={!expanded && local.collapsed}>
+        <Box
           testID="run-detail-result-content"
-          style={local.blocks}
+          className="gap-3"
           onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
         >
           {renderTokens(tokens)}
-        </View>
-      </View>
+        </Box>
+      </Box>
       {height > 144 && (
         <TextButton
           testID="run-detail-result-toggle"
@@ -171,13 +177,9 @@ export function MarkdownResult({ text }: { text: string }) {
 
 const local = StyleSheet.create({
   collapsed: { maxHeight: 144, overflow: 'hidden' },
-  blocks: { gap: 12 },
   bold: { fontWeight: 'bold' },
   italic: { fontStyle: 'italic' },
   deleted: { textDecorationLine: 'line-through' },
   code: { fontFamily: 'monospace' },
-  quote: { borderLeftWidth: 3, paddingLeft: 12, gap: 12 },
-  listRow: { flexDirection: 'row' },
-  listBody: { flex: 1, gap: 12 },
   link: { textDecorationLine: 'underline' },
 });

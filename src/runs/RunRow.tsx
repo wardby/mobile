@@ -1,4 +1,7 @@
-import { StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Badge } from '../../components/ui/badge';
+import { HStack, VStack } from '../../components/ui/box';
+import { Text } from '../../components/ui/text';
+
 import type { components } from '../api/schema';
 import { useColors } from '../navigation/styles';
 import { NavigationRow } from '../ui/interactions';
@@ -22,7 +25,7 @@ export function RunRow({
 }) {
   const colors = useColors();
   const pill = statusStyle(run.status);
-  const pillColors = useColorScheme() === 'dark' ? pill.dark : pill.light;
+
   const started = relativeTime(run.startedAt, now);
   const cost = formatCost(run.costUsd);
   let details = `${started} · ${cost} of ${formatBudget(run.budgetUsd)}`;
@@ -33,35 +36,24 @@ export function RunRow({
       accessible
       accessibilityRole="button"
       accessibilityLabel={`${run.agentName}, ${pill.label}, started ${started}, cost ${cost}`}
-      style={styles.row}
+      className="h-16 px-4"
       onPress={onPress}
     >
-      <View style={styles.content}>
-        <View style={styles.line}>
-          <Text numberOfLines={1} style={[styles.name, { color: colors.text }]}>
+      <VStack className="flex-1 gap-1">
+        <HStack className="items-center gap-2">
+          <Text
+            numberOfLines={1}
+            className="flex-1 text-[17px] font-bold"
+            style={[{ color: colors.text }]}
+          >
             {run.agentName}
           </Text>
-          <View
-            testID={`run-status-${run.id}`}
-            style={[styles.pill, { backgroundColor: pillColors.background }]}
-          >
-            <Text style={[styles.pillText, { color: pillColors.text }]}>{pill.label}</Text>
-          </View>
-        </View>
-        <Text numberOfLines={1} style={[styles.details, { color: colors.muted }]}>
+          <Badge testID={`run-status-${run.id}`} status={run.status} />
+        </HStack>
+        <Text numberOfLines={1} className="text-[14px]" style={[{ color: colors.muted }]}>
           {details}
         </Text>
-      </View>
+      </VStack>
     </NavigationRow>
   );
 }
-
-const styles = StyleSheet.create({
-  row: { height: rowHeight, paddingHorizontal: 16 },
-  content: { flex: 1, gap: 4 },
-  line: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  name: { flex: 1, fontSize: 17, fontWeight: 'bold' },
-  pill: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-  pillText: { fontSize: 13, fontWeight: '600' },
-  details: { fontSize: 14 },
-});

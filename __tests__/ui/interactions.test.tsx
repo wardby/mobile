@@ -1,3 +1,4 @@
+import { theme } from '../../components/ui/theme';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as Native from 'react-native';
 import { ExternalLink, NavigationRow, TextButton } from '../../src/ui/interactions';
@@ -30,7 +31,7 @@ test('external links have a link role, browser hint, accent, external marker and
   await render(<ExternalLink testID="link" label="Pull request" url="https://example.test/pr/1" />);
   expect(screen.getByRole('link', { name: 'Pull request' })).toBeTruthy();
   expect(screen.getByTestId('link')).toHaveProp('accessibilityHint', 'Opens in the browser');
-  expect(screen.getByText('Pull request')).toHaveStyle({ color: '#0066cc' });
+  expect(screen.getByText('Pull request')).toHaveStyle({ color: theme.light.tint });
   expect(screen.getByTestId('link')).toHaveTextContent(/↗/);
   expect(screen.getByTestId('link')).not.toHaveTextContent(/›/);
   await expectFeedback('link');
@@ -63,7 +64,7 @@ test('text buttons expose expanded state, flip disclosure, meet target size and 
     'accessibilityState',
     expect.objectContaining({ expanded: false }),
   );
-  expect(screen.getByText('Show more')).toHaveStyle({ color: '#0066cc' });
+  expect(screen.getByText('Show more')).toHaveStyle({ color: theme.light.tint });
   expect(screen.getByTestId('toggle')).toHaveTextContent(/▾/);
   await expectFeedback('toggle');
   await fireEvent.press(screen.getByTestId('toggle'));
@@ -134,9 +135,9 @@ describe.each(['ios', 'android', 'web'] as const)('%s accent', (platform) => {
     await render(<Sample />);
     const tint = Native.StyleSheet.flatten(screen.getByTestId('accent').props.style)
       .color as string;
-    expect(tint).toBe(mode === 'dark' ? '#66b2ff' : '#0066cc');
+    expect(tint).toBe(theme[mode].tint);
     const foreground = luminance(tint);
-    const background = luminance(mode === 'dark' ? '#121212' : '#ffffff');
+    const background = luminance(theme[mode].background);
     expect(
       (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
     ).toBeGreaterThanOrEqual(4.5);

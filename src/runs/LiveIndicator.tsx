@@ -1,33 +1,34 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useTheme } from '../../components/ui/provider';
+import { Box } from '../../components/ui/box';
+import { Text } from '../../components/ui/text';
+
 import { useLiveGraph, type LiveStatus } from '../live/useLiveGraph';
 import { useColors } from '../navigation/styles';
 
-const indicators: Record<LiveStatus, { label: string; dot: string }> = {
-  live: { label: 'Live', dot: '#34c759' },
-  reconnecting: { label: 'Reconnecting', dot: '#ff9f0a' },
-  connecting: { label: 'Connecting', dot: '#ff9f0a' },
-  offline: { label: 'Offline', dot: '#8e8e93' },
+const indicators: Record<LiveStatus, { label: string; tone: 'ok' | 'warn' | 'offline' }> = {
+  live: { label: 'Live', tone: 'ok' },
+  reconnecting: { label: 'Reconnecting', tone: 'warn' },
+  connecting: { label: 'Connecting', tone: 'warn' },
+  offline: { label: 'Offline', tone: 'offline' },
 };
 
 export function LiveIndicator() {
   const { status } = useLiveGraph();
   const colors = useColors();
-  const { label, dot } = indicators[status];
+  const { label, tone } = indicators[status];
+  const theme = useTheme();
+  const dot = tone === 'offline' ? theme.offline : theme.progress[tone];
   return (
-    <View
+    <Box
       testID="runs-live-indicator"
       accessible
       accessibilityLabel={label}
-      style={styles.indicator}
+      className="flex-row items-center gap-1.5 px-4"
     >
-      <View testID="runs-live-dot" style={[styles.dot, { backgroundColor: dot }]} />
-      <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
-    </View>
+      <Box testID="runs-live-dot" className="w-2 h-2 rounded" style={[{ backgroundColor: dot }]} />
+      <Text className="text-[15px]" style={[{ color: colors.text }]}>
+        {label}
+      </Text>
+    </Box>
   );
 }
-
-const styles = StyleSheet.create({
-  indicator: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  label: { fontSize: 15 },
-});
