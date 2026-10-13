@@ -91,6 +91,11 @@ export function TextButton({
           selectedFill && accessibilityState?.selected && 'font-bold',
         )}
         style={{ color }}
+        {...(selectedFill && {
+          numberOfLines: 1,
+          adjustsFontSizeToFit: true,
+          minimumFontScale: 0.7,
+        })}
       >
         {label}
       </Text>
