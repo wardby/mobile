@@ -87,6 +87,11 @@ beforeEach(() => {
   (useLiveGraph as jest.Mock).mockImplementation(() => ({
     ...useSyncExternalStore(subscribe, () => state),
     refresh,
+    range: state.range ?? '24h',
+    setRange: (range: LiveGraphState['range']) => {
+      state = { ...state, range };
+      listeners.forEach((listener) => listener());
+    },
   }));
   (useSession as jest.Mock).mockImplementation(() => ({
     ready: true,
@@ -115,7 +120,7 @@ test('shows top-level runs only, newest first, with sub-run counts', async () =>
       costUsd: 2.98,
       budgetUsd: 3,
     }),
-    run('fan-out', { status: 'succeeded', startedAt: minutes(30 * 60) }),
+    run('fan-out', { status: 'succeeded', startedAt: minutes(23 * 60) }),
     run('child-b', { parentRunId: 'fan-out' }),
     run('child-c', { parentRunId: 'fan-out' }),
   ]);
@@ -140,7 +145,7 @@ test('shows top-level runs only, newest first, with sub-run counts', async () =>
     'triage-botOut of budget3h ago · $2.98 of $3›',
   );
   expect(screen.getByTestId('run-row-fan-out')).toHaveTextContent(
-    'fan-outSucceeded1d ago · $0.12 of $5 · 2 sub-runs›',
+    'fan-outSucceeded23h ago · $0.12 of $5 · 2 sub-runs›',
   );
 });
 
@@ -262,12 +267,12 @@ test('shows a spinner while the first graph loads', async () => {
 
 test('each filter has its own empty state', async () => {
   await render(app());
-  expect(screen.getByTestId('runs-empty')).toHaveTextContent('No runs in the last day.');
+  expect(screen.getByTestId('runs-empty')).toHaveTextContent('No runs in the last 24 hours.');
   await setLive({ graph: graphOf([run('done', { status: 'succeeded' })]) });
   await fireEvent.press(screen.getByTestId('runs-filter-running'));
-  expect(screen.getByTestId('runs-empty')).toHaveTextContent('Nothing running.');
+  expect(screen.getByTestId('runs-empty')).toHaveTextContent('Nothing running. (last 24 hours)');
   await fireEvent.press(screen.getByTestId('runs-filter-failed'));
-  expect(screen.getByTestId('runs-empty')).toHaveTextContent('No failures. 🎉');
+  expect(screen.getByTestId('runs-empty')).toHaveTextContent('No failures. 🎉 (last 24 hours)');
   await fireEvent.press(screen.getByTestId('runs-filter-all'));
   expect(screen.queryByTestId('runs-empty')).toBeNull();
 });
@@ -312,3 +317,66 @@ test('relative start times move on as the clock ticks', async () => {
   });
   expect(screen.getByTestId('run-row-one')).toHaveTextContent(/^one.*7m ago/);
 });
+
+test('shows the default range, range empty wording and a filled selected status', async () => {
+  jest.spyOn(ReactNative, 'useColorScheme').mockReturnValue('light');
+  await render(app());
+  expect(screen.getByTestId('runs-range')).toHaveTextContent(/24h/);
+  expect(screen.getByTestId('runs-empty')).toHaveTextContent('No runs in the last 24 hours.');
+  expect(screen.getByTestId('runs-filter-all')).toHaveStyle({ backgroundColor: theme.light.tint });
+});
+test('prunes rows at the selected window boundary without a request', async () => {
+  state.graph = graphOf([run('aging', { startedAt: minutes(24 * 60 - 1) })]);
+  await render(app());
+  expect(rowIds()).toEqual(['run-row-aging']);
+  await act(async () => {
+    jest.advanceTimersByTime(60001);
+  });
+  expect(rowIds()).toEqual([]);
+  expect(refresh).not.toHaveBeenCalled();
+});
+test('shows a muted footer when the graph is truncated', async () => {
+  state.graph = { ...graphOf([run('one')]), truncated: true };
+  await render(app());
+  expect(screen.getByTestId('runs-limit')).toHaveTextContent(
+    'Showing the latest 500 runs from the last 24 hours.',
+  );
+});
+
+test('expires a run between minute ticks at its exact window boundary', async () => {
+  state.graph = graphOf([
+    run('boundary', { startedAt: new Date(now - 86400000 + 30000).toISOString() }),
+  ]);
+  await render(app());
+  await act(async () => {
+    jest.advanceTimersByTime(30000);
+  });
+  expect(rowIds()).toEqual([]);
+});
+
+test.each(['light', 'dark'] as const)(
+  'range menu marks its choice and widens the empty window in %s mode',
+  async (mode) => {
+    jest.spyOn(ReactNative, 'useColorScheme').mockReturnValue(mode);
+    state.range = '1h';
+    await render(app());
+    expect(screen.getByTestId('runs-range')).toHaveProp(
+      'accessibilityLabel',
+      'Time range, last hour',
+    );
+    expect(screen.getByTestId('runs-empty')).toHaveTextContent('No runs in the last hour.');
+    await fireEvent.press(screen.getByTestId('runs-range'));
+    expect(screen.getByTestId('runs-range-1h')).toHaveProp(
+      'accessibilityState',
+      expect.objectContaining({ selected: true }),
+    );
+    expect(screen.getByTestId('runs-range-1h')).toHaveTextContent(/✓ Last hour/);
+    await fireEvent.press(screen.getByTestId('runs-range-6h'));
+    expect(screen.getByTestId('runs-range')).toHaveTextContent(/6h/);
+    await fireEvent.press(screen.getByTestId('runs-widen'));
+    expect(screen.getByTestId('runs-range')).toHaveTextContent(/24h/);
+    expect(screen.getByTestId('runs-filter-all')).toHaveStyle({
+      backgroundColor: theme[mode].tint,
+    });
+  },
+);

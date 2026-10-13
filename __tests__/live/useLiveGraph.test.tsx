@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, render, renderHook } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { AppState, Text, type AppStateStatus } from 'react-native';
@@ -50,6 +51,7 @@ const advance = (ms: number) =>
 
 beforeEach(() => {
   jest.useFakeTimers();
+  void AsyncStorage.clear();
   auth = { status: 'signedIn', host: baseUrl };
   (useSession as jest.Mock).mockImplementation(() => auth);
   log = [];
@@ -435,4 +437,27 @@ test('resync notifies detail subscribers even when graph runs are unchanged', as
   latest().push(frame('resync', {}));
   await settle();
   expect(hook.result.current.resyncVersion).toBe(before + 1);
+});
+
+test('defaults to 24h and requests its since and limit', async () => {
+  const { result } = await live();
+  expect(result.current.range).toBe('24h');
+  expect(options.client.getGraph).toHaveBeenCalledWith({ since: '24h', limit: 500 });
+});
+test('persists changes, reloads, and retains range on resync and reconnect with one stream', async () => {
+  const { result, unmount } = await live();
+  await act(() => result.current.setRange('7d'));
+  await settle();
+  expect(options.client.getGraph).toHaveBeenLastCalledWith({ since: '7d', limit: 500 });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  latest().push(frame('resync', {}));
+  await settle();
+  expect(options.client.getGraph).toHaveBeenLastCalledWith({ since: '7d', limit: 500 });
+  latest().end();
+  await settle();
+  await advance(3000);
+  expect(options.client.getGraph).toHaveBeenLastCalledWith({ since: '7d', limit: 500 });
+  await unmount();
+  const next = await live();
+  expect(next.result.current.range).toBe('7d');
 });

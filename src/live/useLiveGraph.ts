@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { type TimeRange, isTimeRange } from '../runs/timeRange';
 import {
   createContext,
   createElement,
@@ -25,11 +27,15 @@ export type LiveGraphState = {
   status: LiveStatus;
   lastUpdated: Date | null;
   resyncVersion?: number;
+  range?: TimeRange;
 };
 export type LiveGraphOptions = {
   baseUrl: string;
   getAccessToken: () => string | null | Promise<string | null>;
-  client: { getGraph(): Promise<Graph>; getRun(id: string): Promise<RunDetail> };
+  client: {
+    getGraph(query?: { since: string; limit: number }): Promise<Graph>;
+    getRun(id: string): Promise<RunDetail>;
+  };
   fetch?: StreamFetch;
   onUnauthorized?: () => void;
   random?: () => number;
@@ -45,7 +51,12 @@ const jitter = 0.2;
 // apply events on top. Refetch on every resync and every reconnect.
 export function createLiveGraph(options: LiveGraphOptions) {
   const random = options.random ?? Math.random;
-  let state: LiveGraphState = { graph: null, status: 'connecting', lastUpdated: null };
+  let state: LiveGraphState = {
+    graph: null,
+    status: 'connecting',
+    lastUpdated: null,
+    range: '24h',
+  };
   const listeners = new Set<() => void>();
   let controller: AbortController | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -124,7 +135,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
     buffered = [];
     let graph: Graph;
     try {
-      graph = await options.client.getGraph();
+      graph = await options.client.getGraph({ since: state.range ?? '24h', limit: 500 });
     } catch {
       // Keep the last graph and retry with back-off; the reconnect refetches.
       if (current === load && running && !paused) reconnect();
@@ -239,7 +250,22 @@ export function createLiveGraph(options: LiveGraphOptions) {
         connect();
       }
     });
-    connect();
+    void AsyncStorage.getItem('runs.timeRange')
+      .catch(() => null)
+      .then((saved) => {
+        if (!running) return;
+        if (isTimeRange(saved)) update({ range: saved });
+        connect();
+      });
+  }
+  function setRange(range: TimeRange) {
+    if (range === state.range) return;
+    load++;
+    buffered = null;
+    refreshPending = false;
+    update({ range, graph: null });
+    void AsyncStorage.setItem('runs.timeRange', range).catch(() => {});
+    if (openedAt !== null) void refresh();
   }
   function close() {
     running = false;
@@ -249,6 +275,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
   }
   return {
     start,
+    setRange,
     close,
     refresh,
     getSnapshot: () => state,
@@ -311,5 +338,10 @@ export function useLiveGraph() {
     store?.getSnapshot ?? getIdle,
     store?.getSnapshot ?? getIdle,
   );
-  return { ...state, refresh: store?.refresh ?? refreshIdle };
+  return {
+    ...state,
+    range: state.range ?? '24h',
+    setRange: store?.setRange ?? (() => {}),
+    refresh: store?.refresh ?? refreshIdle,
+  };
 }

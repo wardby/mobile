@@ -19,6 +19,7 @@
     "@gluestack-ui/core": "^5.0.15",
     "@gluestack-ui/utils": "^5.0.6",
     "@legendapp/motion": "^2.5.3",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.27",
     "expo-auth-session": "~57.0.14",
     "expo-constants": "~57.0.21",

@@ -43,15 +43,27 @@ export function NavigationRow({
 export function TextButton({
   label,
   expanded,
+  selectedFill = false,
   destructive = false,
   loading = false,
   accessibilityState,
   style,
   className = '',
   ...props
-}: ControlProps & { label: string; expanded?: boolean; destructive?: boolean; loading?: boolean }) {
+}: ControlProps & {
+  label: string;
+  expanded?: boolean;
+  destructive?: boolean;
+  loading?: boolean;
+  selectedFill?: boolean;
+}) {
   const colors = useColors();
-  const color = destructive ? colors.destructive : colors.tint;
+  const color =
+    selectedFill && accessibilityState?.selected
+      ? colors.background
+      : destructive
+        ? colors.destructive
+        : colors.tint;
   return (
     <Button
       accessibilityRole="button"
@@ -64,12 +76,19 @@ export function TextButton({
       }}
       className={cn(`flex-row items-center gap-2 justify-center px-2`, className)}
       style={(state) => [
+        selectedFill && accessibilityState?.selected && { backgroundColor: colors.tint },
         accessibilityState?.selected && { borderBottomWidth: 2, borderBottomColor: colors.tint },
         typeof style === 'function' ? style(state) : style,
       ]}
     >
       {loading && <Spinner color={color} />}
-      <Text className="text-[17px] font-semibold shrink" style={{ color }}>
+      <Text
+        className={cn(
+          'text-[17px] font-semibold shrink',
+          selectedFill && accessibilityState?.selected && 'font-bold',
+        )}
+        style={{ color }}
+      >
         {label}
       </Text>
       {expanded !== undefined && (
