@@ -513,19 +513,19 @@ test.each(['light', 'dark'] as const)(
       ['runs-range', '1h', '24h'],
     ]) {
       const label = () => within(screen.getByTestId(id)).getByText(/./);
-      expect(screen.getByTestId(id)).toHaveStyle({
-        borderWidth: ReactNative.StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-        backgroundColor: colors.fill,
-      });
+      expect(screen.getByTestId(id).props.className.split(' ')).toEqual(
+        expect.arrayContaining(['border', 'border-border', 'bg-fill', 'rounded-lg']),
+      );
       expect(label()).toHaveStyle({ color: colors.text });
       await fireEvent.press(screen.getByTestId(id));
       await fireEvent.press(screen.getByTestId(id + '-' + choice));
-      expect(screen.getByTestId(id)).toHaveStyle({ borderColor: colors.tint });
+      expect(screen.getByTestId(id).props.className.split(' ')).toContain('border-accent');
+      expect(screen.getByTestId(id).props.className.split(' ')).not.toContain('border-border');
       expect(label()).toHaveStyle({ color: colors.tint });
       await fireEvent.press(screen.getByTestId(id));
       await fireEvent.press(screen.getByTestId(id + '-' + defaultChoice));
-      expect(screen.getByTestId(id)).toHaveStyle({ borderColor: colors.border });
+      expect(screen.getByTestId(id).props.className.split(' ')).toContain('border-border');
+      expect(screen.getByTestId(id).props.className.split(' ')).not.toContain('border-accent');
       expect(label()).toHaveStyle({ color: colors.text });
     }
   },

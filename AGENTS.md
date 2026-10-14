@@ -99,6 +99,8 @@ vendored contract.
 
 ## UI
 
+- Never put a style that must render (border, background, size) in a `style` function passed to `Button` / `Pressable` when the control also has a `className`: NativeWind drops it on device, and Jest cannot catch it (#46, #62). Use theme-token classes (`border-border`, `bg-fill`, `bg-accent`, …) instead.
+
 - A control that opens a menu uses `MenuButton`; `TextButton` is for actions.
 
 - The app's light/dark mode comes from `src/settings/appearance.ts` (`Appearance.setColorScheme`); never read or override the scheme anywhere else.

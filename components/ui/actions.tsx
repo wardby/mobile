@@ -1,6 +1,5 @@
 import ChevronDown from 'lucide-react-native/icons/chevron-down';
 import ChevronUp from 'lucide-react-native/icons/chevron-up';
-import { StyleSheet } from 'react-native';
 import { Icon } from './icon';
 import { cn } from 'tailwind-variants';
 import type { ReactNode } from 'react';
@@ -85,10 +84,7 @@ export function TextButton({
         selectedFill && accessibilityState?.selected && 'bg-accent',
         className,
       )}
-      style={(state) => [
-        accessibilityState?.selected && { borderBottomWidth: 2, borderBottomColor: colors.tint },
-        typeof style === 'function' ? style(state) : style,
-      ]}
+      style={style}
     >
       {loading && <Spinner color={color} />}
       <Text
@@ -137,15 +133,12 @@ export function MenuButton({
       {...props}
       accessibilityRole="button"
       accessibilityState={{ ...accessibilityState, expanded, disabled: !!props.disabled }}
-      className={cn('flex-row items-center gap-2 justify-center rounded-lg px-3', className)}
-      style={(state) => [
-        {
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: active ? colors.tint : colors.border,
-          backgroundColor: colors.fill,
-        },
-        typeof style === 'function' ? style(state) : style,
-      ]}
+      className={cn(
+        'flex-row items-center gap-2 justify-center border bg-fill rounded-lg px-3',
+        active ? 'border-accent' : 'border-border',
+        className,
+      )}
+      style={style}
     >
       <Text
         className="text-[17px] font-semibold shrink"
