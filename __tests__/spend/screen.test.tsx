@@ -168,11 +168,14 @@ test('restores saved period across launches', async () => {
   );
 });
 
-test('agent spend row opens the Runs tab with only the agent param', async () => {
+test('agent spend row opens the Runs tab with the agent and navigation params', async () => {
   await render(<Spend />);
   const row = await screen.findByTestId('spend-agent-a0');
   expect(row).toHaveProp('accessibilityLabel', 'View runs by Agent 0');
   expect(row).toHaveTextContent(/›/);
   await fireEvent.press(row);
-  expect(mockNavigate).toHaveBeenCalledWith({ pathname: '/(tabs)', params: { agent: 'a0' } });
+  expect(mockNavigate).toHaveBeenCalledWith({
+    pathname: '/(tabs)',
+    params: { agent: 'a0', agentNavigation: expect.any(String) },
+  });
 });

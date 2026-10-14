@@ -474,3 +474,26 @@ test('route agent preselects, changes, and clears unknown or empty ids', async (
   await act(async () => router.setParams({ agent: '' }));
   expect(screen.getByTestId('runs-agent')).toHaveTextContent(/All agents/);
 });
+
+test.each(['builder', 'all'])(
+  'repeated Spend agent taps replace a local %s selection',
+  async (choice) => {
+    state.graph = graphOf([
+      graphFixture.runs[0] as Run,
+      { ...graphFixture.runs[1], parentRunId: null } as Run,
+    ]);
+    await render(app());
+    await act(async () => router.navigate('/(tabs)/spend'));
+    await fireEvent.press(await screen.findByTestId('spend-agent-planner'));
+    expect(screen.getByTestId('runs-agent')).toHaveTextContent(/Planner/);
+    await fireEvent.press(screen.getByTestId('runs-agent'));
+    await fireEvent.press(screen.getByTestId(`runs-agent-${choice}`));
+    expect(screen.getByTestId('runs-agent')).toHaveTextContent(
+      choice === 'all' ? /All agents/ : /Builder/,
+    );
+    await act(async () => router.navigate('/(tabs)/spend'));
+    await fireEvent.press(await screen.findByTestId('spend-agent-planner'));
+    expect(screen.getByTestId('runs-agent')).toHaveTextContent(/Planner/);
+    expect(rowIds()).toEqual(['run-row-run-parent']);
+  },
+);

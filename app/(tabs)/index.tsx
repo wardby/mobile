@@ -32,9 +32,13 @@ export default function Runs() {
   const { graph, refresh, range, setRange } = useLiveGraph();
   const colors = useColors();
   const router = useRouter();
-  const { agent: agentParam } = useLocalSearchParams<{ agent?: string }>();
+  const { agent: agentParam, agentNavigation } = useLocalSearchParams<{
+    agent?: string;
+    agentNavigation?: string;
+  }>();
   const [agentSelection, setAgentSelection] = useState({
     param: agentParam,
+    navigation: agentNavigation,
     agentId: agentParam || null,
     agentName: undefined as string | undefined,
   });
@@ -56,8 +60,13 @@ export default function Runs() {
     );
   }
   // Route changes replace local choices; remember the name when a graph window drops the agent.
-  if (agentSelection.param !== agentParam) {
-    setAgentSelection({ param: agentParam, agentId: agentParam || null, agentName: undefined });
+  if (agentSelection.param !== agentParam || agentSelection.navigation !== agentNavigation) {
+    setAgentSelection({
+      param: agentParam,
+      navigation: agentNavigation,
+      agentId: agentParam || null,
+      agentName: undefined,
+    });
     setFilter('all');
   } else if (agentName !== agentSelection.agentName) {
     setAgentSelection({ ...agentSelection, agentName });
@@ -150,6 +159,7 @@ export default function Runs() {
                 onPress={() =>
                   setAgentSelection({
                     param: agentParam,
+                    navigation: agentNavigation,
                     agentId: item.agentId,
                     agentName: item.agentId === null ? undefined : item.agentName,
                   })

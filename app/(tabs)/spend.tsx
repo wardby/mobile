@@ -15,6 +15,8 @@ import { useSpend, useSpendPeriod } from '../../src/spend/useSpend';
 
 const dollars = (value: number) => `$${value.toFixed(2)}`;
 const count = (value: number) => `${value} ${value === 1 ? 'run' : 'runs'}`;
+// Repeated taps must replace local Runs filters, even for the same agent.
+let agentNavigation = 0;
 export default function Spend() {
   const colors = useColors();
   const router = useRouter();
@@ -187,7 +189,13 @@ export default function Spend() {
                         testID={`spend-agent-${row.agentId}`}
                         accessibilityLabel={`View runs by ${row.agentName}`}
                         onPress={() =>
-                          router.navigate({ pathname: '/(tabs)', params: { agent: row.agentId } })
+                          router.navigate({
+                            pathname: '/(tabs)',
+                            params: {
+                              agent: row.agentId,
+                              agentNavigation: String(++agentNavigation),
+                            },
+                          })
                         }
                       >
                         <Box className="flex-1 gap-2">
