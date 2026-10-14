@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Box } from '../../components/ui/box';
 import { Text } from '../../components/ui/text';
 import { marked, type Token, type Tokens } from 'marked';
@@ -27,6 +28,7 @@ export function MarkdownResult({ text }: { text: string }) {
       const key = `${path}-${index}`;
       switch (token.type) {
         case 'space':
+        case 'checkbox':
           return null;
         case 'heading':
           return (
@@ -88,9 +90,26 @@ export function MarkdownResult({ text }: { text: string }) {
             <Box key={key} className="gap-3">
               {token.items.map((item: Tokens.ListItem, i: number) => (
                 <Box key={i} className="flex-row">
-                  <Text style={textStyle}>
-                    {token.ordered ? `${Number(token.start) + i}.` : '•'}{' '}
-                  </Text>
+                  {item.task ? (
+                    <Box
+                      testID={`markdown-task-${key}-${i}`}
+                      accessible
+                      accessibilityLabel={item.text}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: !!item.checked, disabled: true }}
+                      className="h-[22px] justify-center mr-2"
+                    >
+                      <Ionicons
+                        name={item.checked ? 'checkbox' : 'square-outline'}
+                        size={20}
+                        color={item.checked ? colors.tint : colors.muted}
+                      />
+                    </Box>
+                  ) : (
+                    <Text style={textStyle}>
+                      {token.ordered ? `${Number(token.start) + i}.` : '•'}{' '}
+                    </Text>
+                  )}
                   <Box className="flex-1 gap-3">{renderTokens(item.tokens, `${key}-${i}`)}</Box>
                 </Box>
               ))}

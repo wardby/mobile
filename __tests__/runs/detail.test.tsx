@@ -345,6 +345,29 @@ test.each(['light', 'dark'])(
   },
 );
 
+test.each([
+  ['tight', '\n'],
+  ['loose', '\n\n'],
+])('result renders %s task lists as read-only checkboxes', async (_kind, separator) => {
+  detail = {
+    ...detail,
+    finalText: ['- [x] Done item', '- [ ] Open item', '- Plain item'].join(separator),
+  };
+  await setup();
+  const checked = screen.getByTestId('markdown-task-result-0-0');
+  expect(checked).toHaveProp('accessibilityRole', 'checkbox');
+  expect(checked).toHaveProp('accessibilityState', { checked: true, disabled: true });
+  const unchecked = screen.getByTestId('markdown-task-result-0-1');
+  expect(unchecked).toHaveProp('accessibilityRole', 'checkbox');
+  expect(unchecked).toHaveProp('accessibilityState', { checked: false, disabled: true });
+  expect(screen.queryByTestId('markdown-task-result-0-2')).toBeNull();
+  const result = screen.getByTestId('run-detail-result');
+  expect(result).toHaveTextContent(/• Plain item/);
+  expect(result).toHaveTextContent(/Done item/);
+  expect(result).toHaveTextContent(/Open item/);
+  expect(result).not.toHaveTextContent(/\[x\]|\[ \]/);
+});
+
 test('result toggle uses an accent disclosure with a 44pt target and pressed feedback', async () => {
   await setup();
   await fireEvent(screen.getByTestId('run-detail-result-content'), 'layout', {
