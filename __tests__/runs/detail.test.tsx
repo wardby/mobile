@@ -310,6 +310,7 @@ test.each(['light', 'dark'])(
     const color = mode === 'dark' ? '#ffffff' : '#000000';
     jest.spyOn(palette, 'useColors').mockReturnValue({
       background: mode === 'dark' ? '#121212' : '#ffffff',
+      fill: theme[mode === 'dark' ? 'dark' : 'light'].fill,
       text: color,
       muted: '#888888',
       destructive: '#ff3b30',
@@ -399,6 +400,7 @@ test.each([theme.light.tint, theme.dark.tint])(
   async (tint) => {
     jest.spyOn(palette, 'useColors').mockReturnValue({
       background: '#ffffff',
+      fill: theme.light.fill,
       text: '#000000',
       muted: '#888888',
       destructive: '#ff3b30',

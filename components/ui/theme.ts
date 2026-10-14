@@ -24,6 +24,7 @@ export const statusTokens = {
 export const theme = {
   light: {
     background: '#ffffff',
+    fill: '#f2f2f7',
     text: '#000000',
     muted: '#767676',
     border: '#767676',
@@ -34,6 +35,7 @@ export const theme = {
   },
   dark: {
     background: '#121212',
+    fill: '#2c2c2e',
     text: '#ffffff',
     muted: '#888888',
     border: '#888888',
@@ -49,6 +51,7 @@ export function themeVariables(mode: Mode) {
   const colors = theme[mode];
   const tokens: Record<string, string> = {
     background: colors.background,
+    fill: colors.fill,
     foreground: colors.text,
     muted: colors.muted,
     border: colors.border,
