@@ -166,12 +166,15 @@ const everyStatus: Run['status'][] = [
   'cancelled',
 ];
 const filtered = async (filter: string, ids: string[]) => {
+  await fireEvent.press(screen.getByTestId('runs-filter'));
   await fireEvent.press(screen.getByTestId(`runs-filter-${filter}`));
+  await fireEvent.press(screen.getByTestId('runs-filter'));
   for (const name of ['all', 'running', 'failed'])
     expect(screen.getByTestId(`runs-filter-${name}`)).toHaveProp(
       'accessibilityState',
       expect.objectContaining({ selected: name === filter }),
     );
+  await fireEvent.press(screen.getByTestId(`runs-filter-${filter}`));
   expect(rowIds()).toEqual(ids.map((id) => `run-row-${id}`));
 };
 
@@ -180,6 +183,7 @@ test('All / Running / Failed filters show the right runs', async () => {
     everyStatus.map((status, i) => run(status, { status, startedAt: minutes(i) })),
   );
   await render(app());
+  await fireEvent.press(screen.getByTestId('runs-filter'));
   expect(screen.getByTestId('runs-filter-all')).toHaveProp('accessibilityLabel', 'All');
   expect(screen.getByTestId('runs-filter-running')).toHaveProp('accessibilityLabel', 'Running');
   expect(screen.getByTestId('runs-filter-failed')).toHaveProp('accessibilityLabel', 'Failed');
@@ -187,6 +191,7 @@ test('All / Running / Failed filters show the right runs', async () => {
     'accessibilityState',
     expect.objectContaining({ selected: true }),
   );
+  await fireEvent.press(screen.getByTestId('runs-filter-all'));
   expect(rowIds()).toEqual(everyStatus.map((id) => `run-row-${id}`));
   await filtered('running', ['pending', 'running']);
   await filtered('failed', ['failed', 'refused', 'lost', 'budget_exhausted']);
@@ -200,10 +205,12 @@ test('the selected filter survives a tab switch', async () => {
   await fireEvent.press(screen.getByTestId('tab-spend'));
   expect(screen.getByTestId('spend-period-week')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('tab-runs'));
+  await fireEvent.press(screen.getByTestId('runs-filter'));
   expect(screen.getByTestId('runs-filter-failed')).toHaveProp(
     'accessibilityState',
     expect.objectContaining({ selected: true }),
   );
+  await fireEvent.press(screen.getByTestId('runs-filter-failed'));
   expect(rowIds()).toEqual(['run-row-broken']);
 });
 
@@ -275,10 +282,13 @@ test('each filter has its own empty state', async () => {
   await render(app());
   expect(screen.getByTestId('runs-empty')).toHaveTextContent('No runs in the last 24 hours.');
   await setLive({ graph: graphOf([run('done', { status: 'succeeded' })]) });
+  await fireEvent.press(screen.getByTestId('runs-filter'));
   await fireEvent.press(screen.getByTestId('runs-filter-running'));
   expect(screen.getByTestId('runs-empty')).toHaveTextContent('Nothing running. (last 24 hours)');
+  await fireEvent.press(screen.getByTestId('runs-filter'));
   await fireEvent.press(screen.getByTestId('runs-filter-failed'));
   expect(screen.getByTestId('runs-empty')).toHaveTextContent('No failures. 🎉 (last 24 hours)');
+  await fireEvent.press(screen.getByTestId('runs-filter'));
   await fireEvent.press(screen.getByTestId('runs-filter-all'));
   expect(screen.queryByTestId('runs-empty')).toBeNull();
 });
@@ -324,12 +334,12 @@ test('relative start times move on as the clock ticks', async () => {
   expect(screen.getByTestId('run-row-one')).toHaveTextContent(/^one.*7m ago/);
 });
 
-test('shows the default range, range empty wording and a filled selected status', async () => {
+test('shows the default range, range empty wording and selected status', async () => {
   jest.spyOn(ReactNative, 'useColorScheme').mockReturnValue('light');
   await render(app());
   expect(screen.getByTestId('runs-range')).toHaveTextContent(/24h/);
   expect(screen.getByTestId('runs-empty')).toHaveTextContent('No runs in the last 24 hours.');
-  expect(screen.getByTestId('runs-filter-all').props.className).toContain('bg-accent');
+  expect(screen.getByTestId('runs-filter')).toHaveTextContent(/All/);
 });
 test('prunes rows at the selected window boundary without a request', async () => {
   state.graph = graphOf([run('aging', { startedAt: minutes(24 * 60 - 1) })]);
@@ -381,18 +391,109 @@ test.each(['light', 'dark'] as const)(
     expect(screen.getByTestId('runs-range')).toHaveTextContent(/6h/);
     await fireEvent.press(screen.getByTestId('runs-widen'));
     expect(screen.getByTestId('runs-range')).toHaveTextContent(/24h/);
-    expect(screen.getByTestId('runs-filter-all').props.className).toContain('bg-accent');
+    expect(screen.getByTestId('runs-filter')).toHaveTextContent(/All/);
   },
 );
 
-test('only the selected filter has an accent fill', async () => {
+test('status menu marks the selected option', async () => {
   await render(app());
-  for (const selected of ['all', 'running', 'failed']) {
-    await fireEvent.press(screen.getByTestId(`runs-filter-${selected}`));
-    for (const filter of ['all', 'running', 'failed']) {
-      const className = screen.getByTestId(`runs-filter-${filter}`).props.className;
-      if (filter === selected) expect(className).toContain('bg-accent');
-      else expect(className).not.toContain('bg-accent');
-    }
-  }
+  for (const selected of ['all', 'running', 'failed']) await filtered(selected, []);
 });
+
+test('agent, status and range dropdowns combine and retain an empty agent', async () => {
+  state.graph = graphOf([
+    run('builder-failed', {
+      agentId: 'builder',
+      agentName: 'Builder',
+      status: 'failed',
+      startedAt: minutes(120),
+    }),
+    run('builder-running', { agentId: 'builder', agentName: 'Builder', startedAt: minutes(180) }),
+    run('other', { agentId: 'other', agentName: 'Other' }),
+    run('child', { agentId: 'builder', agentName: 'Builder', parentRunId: 'builder-failed' }),
+  ]);
+  await render(app());
+  expect(
+    screen.getAllByTestId(/^runs-(agent|filter|range)$/).map((item) => item.props.testID),
+  ).toEqual(['runs-agent', 'runs-filter', 'runs-range']);
+  expect(screen.getByTestId('runs-agent')).toHaveProp('accessibilityLabel', 'Agent, All agents');
+  expect(screen.getByTestId('runs-filter')).toHaveProp('accessibilityLabel', 'Status, All');
+  expect(screen.getByTestId('runs-range')).toHaveTextContent(/24h/);
+  for (const id of ['runs-agent', 'runs-filter', 'runs-range'])
+    expect(screen.getByTestId(id)).toHaveStyle({ minWidth: 44, minHeight: 44 });
+  expect(screen.getByTestId('runs-filter')).toHaveStyle({ width: 104 });
+  expect(screen.getByTestId('runs-range')).toHaveStyle({ width: 80 });
+  expect(screen.getByTestId('runs-agent').props.className).toContain('flex-1 min-w-0');
+  expect(within(screen.getByTestId('runs-agent')).getByText('All agents')).toHaveProp(
+    'numberOfLines',
+    1,
+  );
+  // At 320pt, fixed triggers, padding and gaps leave 88pt for the shrinking agent trigger.
+  expect(320 - 104 - 80 - 32 - 16).toBeGreaterThanOrEqual(44);
+  expect(rowIds()).toEqual(['run-row-other', 'run-row-builder-failed', 'run-row-builder-running']);
+  await fireEvent.press(screen.getByTestId('runs-agent'));
+  expect(screen.getByTestId('runs-agent-all')).toHaveTextContent(/All agents/);
+  expect(screen.getByTestId('runs-agent-builder')).toHaveTextContent(/Builder · 2/);
+  expect(screen.getByTestId('runs-agent-other')).toHaveTextContent(/Other · 1/);
+  await fireEvent.press(screen.getByTestId('runs-agent-builder'));
+  expect(rowIds()).toEqual(['run-row-builder-failed', 'run-row-builder-running']);
+  await filtered('failed', ['builder-failed']);
+  await fireEvent.press(screen.getByTestId('runs-range'));
+  await fireEvent.press(screen.getByTestId('runs-range-1h'));
+  expect(screen.getByTestId('runs-empty')).toHaveTextContent(
+    'No failures. 🎉 (Builder, last hour)',
+  );
+  await filtered('all', []);
+  expect(screen.getByTestId('runs-empty')).toHaveTextContent(
+    'No runs by Builder in the last hour.',
+  );
+  expect(screen.getByTestId('runs-widen')).toBeTruthy();
+  await setLive({ graph: graphOf([run('other', { agentId: 'other', agentName: 'Other' })]) });
+  await fireEvent.press(screen.getByTestId('runs-agent'));
+  expect(screen.getByTestId('runs-agent-builder')).toHaveTextContent('✓ Builder · 0');
+  expect(screen.getByTestId('runs-agent-builder')).toHaveProp(
+    'accessibilityState',
+    expect.objectContaining({ selected: true }),
+  );
+  await fireEvent.press(screen.getByTestId('runs-agent-all'));
+  expect(rowIds()).toEqual(['run-row-other']);
+});
+
+test('route agent preselects, changes, and clears unknown or empty ids', async () => {
+  state.graph = graphOf([
+    run('one', { agentId: 'a', agentName: 'Agent A' }),
+    run('two', { agentId: 'b', agentName: 'Agent B' }),
+  ]);
+  await render(<ExpoRoot context={context} location={new URL('http://localhost/?agent=a')} />);
+  expect(rowIds()).toEqual(['run-row-one']);
+  expect(screen.getByTestId('runs-agent')).toHaveTextContent(/Agent A/);
+  await act(async () => router.navigate({ pathname: '/(tabs)', params: { agent: 'b' } }));
+  expect(rowIds()).toEqual(['run-row-two']);
+  await act(async () => router.setParams({ agent: 'unknown' }));
+  expect(rowIds()).toEqual(['run-row-one', 'run-row-two']);
+  await act(async () => router.setParams({ agent: '' }));
+  expect(screen.getByTestId('runs-agent')).toHaveTextContent(/All agents/);
+});
+
+test.each(['builder', 'all'])(
+  'repeated Spend agent taps replace a local %s selection',
+  async (choice) => {
+    state.graph = graphOf([
+      graphFixture.runs[0] as Run,
+      { ...graphFixture.runs[1], parentRunId: null } as Run,
+    ]);
+    await render(app());
+    await act(async () => router.navigate('/(tabs)/spend'));
+    await fireEvent.press(await screen.findByTestId('spend-agent-planner'));
+    expect(screen.getByTestId('runs-agent')).toHaveTextContent(/Planner/);
+    await fireEvent.press(screen.getByTestId('runs-agent'));
+    await fireEvent.press(screen.getByTestId(`runs-agent-${choice}`));
+    expect(screen.getByTestId('runs-agent')).toHaveTextContent(
+      choice === 'all' ? /All agents/ : /Builder/,
+    );
+    await act(async () => router.navigate('/(tabs)/spend'));
+    await fireEvent.press(await screen.findByTestId('spend-agent-planner'));
+    expect(screen.getByTestId('runs-agent')).toHaveTextContent(/Planner/);
+    expect(rowIds()).toEqual(['run-row-run-parent']);
+  },
+);

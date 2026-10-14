@@ -1,13 +1,13 @@
 import { Menu } from '../../components/ui/menu';
 import { timeRanges } from '../../src/runs/timeRange';
-import { ButtonGroup } from '../../components/ui/button';
+import { agentOptions, matchesAgent } from '../../src/runs/agentFilter';
 import { Divider } from '../../components/ui/divider';
 import { Spinner } from '../../components/ui/spinner';
 import { Box } from '../../components/ui/box';
 import { Text } from '../../components/ui/text';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { AppState, FlatList, RefreshControl, StyleSheet } from 'react-native';
+import { AppState, FlatList, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextButton } from '../../src/ui/interactions';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
@@ -32,10 +32,45 @@ export default function Runs() {
   const { graph, refresh, range, setRange } = useLiveGraph();
   const colors = useColors();
   const router = useRouter();
+  const { agent: agentParam, agentNavigation } = useLocalSearchParams<{
+    agent?: string;
+    agentNavigation?: string;
+  }>();
+  const [agentSelection, setAgentSelection] = useState({
+    param: agentParam,
+    navigation: agentNavigation,
+    agentId: agentParam || null,
+    agentName: undefined as string | undefined,
+  });
+  const agentName =
+    graph?.runs.find((run) => run.agentId === agentSelection.agentId)?.agentName ??
+    agentSelection.agentName;
+  const selectedAgent = agentName === undefined ? null : agentSelection.agentId;
   const [filter, setFilter] = useState<Filter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(Date.now);
   const timeRange = timeRanges.find((item) => item.key === range)!;
+  const options = agentOptions(graph?.runs ?? [], now - timeRange.duration);
+  if (selectedAgent && !options.some((item) => item.agentId === selectedAgent)) {
+    options.push({ agentId: selectedAgent, agentName: agentName!, runs: 0 });
+    options.sort(
+      (a, b) =>
+        a.agentName.toLowerCase().localeCompare(b.agentName.toLowerCase()) ||
+        a.agentId.localeCompare(b.agentId),
+    );
+  }
+  // Route changes replace local choices; remember the name when a graph window drops the agent.
+  if (agentSelection.param !== agentParam || agentSelection.navigation !== agentNavigation) {
+    setAgentSelection({
+      param: agentParam,
+      navigation: agentNavigation,
+      agentId: agentParam || null,
+      agentName: undefined,
+    });
+    setFilter('all');
+  } else if (agentName !== agentSelection.agentName) {
+    setAgentSelection({ ...agentSelection, agentName });
+  }
   const selected = filters.find((item) => item.key === filter)!;
 
   const { runs, subRuns } = useMemo(() => {
@@ -46,10 +81,11 @@ export default function Runs() {
     const runs = (graph?.runs ?? [])
       .filter((run) => Date.parse(run.startedAt) > now - timeRange.duration)
       .filter((run) => run.parentRunId === null)
+      .filter((run) => matchesAgent(run, selectedAgent))
       .filter((run) => !selected.statuses || selected.statuses.includes(run.status))
       .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
     return { runs, subRuns };
-  }, [graph, selected, now, timeRange]);
+  }, [graph, selected, selectedAgent, now, timeRange]);
 
   // Keep the relative start times current.
   useEffect(() => {
@@ -90,25 +126,95 @@ export default function Runs() {
       style={[{ backgroundColor: colors.background }]}
     >
       <Box className="flex-row items-center gap-2 px-4 py-3">
-        <ButtonGroup
-          className="flex-1 flex-row border rounded-lg overflow-hidden"
-          style={{ borderColor: colors.muted, borderWidth: StyleSheet.hairlineWidth }}
+        <Menu
+          placement="bottom left"
+          selectionMode="single"
+          selectedKeys={new Set([selectedAgent ?? 'all'])}
+          style={{ backgroundColor: colors.background, borderColor: colors.muted }}
+          className="rounded-lg border p-1"
+          trigger={(props, { open }) => (
+            <TextButton
+              {...props}
+              testID="runs-agent"
+              label={agentName ?? 'All agents'}
+              expanded={open}
+              numberOfLines={1}
+              accessibilityLabel={`Agent, ${agentName ?? 'All agents'}`}
+              accessibilityHint="Opens the agent menu"
+              className="flex-1 min-w-0"
+            />
+          )}
         >
-          {filters.map((item) => {
-            const active = item.key === filter;
+          {[{ agentId: null, agentName: 'All agents', runs: 0 }, ...options].map((item) => {
+            const active = item.agentId === selectedAgent;
+            const label =
+              item.agentId === null ? item.agentName : `${item.agentName} · ${item.runs}`;
             return (
-              <TextButton
-                key={item.key}
-                testID={`runs-filter-${item.key}`}
-                label={item.label}
-                selectedFill
+              <Menu.Item
+                key={item.agentId ?? 'all'}
+                textValue={label}
+                testID={`runs-agent-${item.agentId ?? 'all'}`}
+                accessibilityLabel={label}
                 accessibilityState={{ selected: active }}
-                className="flex-1 py-2 items-center"
-                onPress={() => setFilter(item.key)}
-              />
+                onPress={() =>
+                  setAgentSelection({
+                    param: agentParam,
+                    navigation: agentNavigation,
+                    agentId: item.agentId,
+                    agentName: item.agentId === null ? undefined : item.agentName,
+                  })
+                }
+                className="px-3 py-2"
+              >
+                <Menu.ItemLabel
+                  className={active ? 'font-bold' : ''}
+                  style={{ color: colors.tint }}
+                >
+                  {active ? '✓ ' : ''}
+                  {label}
+                </Menu.ItemLabel>
+              </Menu.Item>
             );
           })}
-        </ButtonGroup>
+        </Menu>
+        <Menu
+          placement="bottom right"
+          selectionMode="single"
+          selectedKeys={new Set([filter])}
+          style={{ backgroundColor: colors.background, borderColor: colors.muted }}
+          className="rounded-lg border p-1"
+          trigger={(props, { open }) => (
+            <TextButton
+              {...props}
+              testID="runs-filter"
+              label={selected.label}
+              expanded={open}
+              accessibilityLabel={`Status, ${selected.label}`}
+              accessibilityHint="Opens the status menu"
+              style={{ width: 104 }}
+            />
+          )}
+        >
+          {filters.map((item) => (
+            <Menu.Item
+              key={item.key}
+              textValue={item.label}
+              testID={`runs-filter-${item.key}`}
+              accessibilityLabel={item.label}
+              accessibilityState={{ selected: item.key === filter }}
+              onPress={() => setFilter(item.key)}
+              className="px-3 py-2"
+            >
+              <Menu.ItemLabel
+                className={item.key === filter ? 'font-bold' : ''}
+                style={{ color: colors.tint }}
+              >
+                {item.key === filter ? '✓ ' : ''}
+                {item.label}
+              </Menu.ItemLabel>
+            </Menu.Item>
+          ))}
+        </Menu>
         <Menu
           placement="bottom right"
           selectionMode="single"
@@ -178,8 +284,10 @@ export default function Runs() {
                 style={[{ color: colors.muted }]}
               >
                 {filter === 'all'
-                  ? `No runs in the ${timeRange.window}.`
-                  : `${selected.empty} (${timeRange.window})`}
+                  ? selectedAgent
+                    ? `No runs by ${agentName} in the ${timeRange.window}.`
+                    : `No runs in the ${timeRange.window}.`
+                  : `${selected.empty} (${selectedAgent ? `${agentName}, ` : ''}${timeRange.window})`}
               </Text>
               {range !== '7d' && (
                 <TextButton
