@@ -43,6 +43,7 @@ export function NavigationRow({
 export function TextButton({
   label,
   expanded,
+  numberOfLines,
   selectedFill = false,
   destructive = false,
   loading = false,
@@ -53,6 +54,7 @@ export function TextButton({
 }: ControlProps & {
   label: string;
   expanded?: boolean;
+  numberOfLines?: number;
   destructive?: boolean;
   loading?: boolean;
   selectedFill?: boolean;
@@ -91,6 +93,7 @@ export function TextButton({
           selectedFill && accessibilityState?.selected && 'font-bold',
         )}
         style={{ color }}
+        numberOfLines={numberOfLines}
         {...(selectedFill && {
           numberOfLines: 1,
           adjustsFontSizeToFit: true,

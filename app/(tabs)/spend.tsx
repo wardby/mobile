@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { RefreshControl, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,7 +7,7 @@ import { Text } from '../../components/ui/text';
 import { ButtonGroup } from '../../components/ui/button';
 import { Progress } from '../../components/ui/progress';
 import { Spinner } from '../../components/ui/spinner';
-import { ExternalLink, TextButton } from '../../src/ui/interactions';
+import { ExternalLink, NavigationRow, TextButton } from '../../src/ui/interactions';
 import { useColors } from '../../src/navigation/styles';
 import { spendLevel } from '../../src/runs/format';
 import { periods, resetLabel } from '../../src/spend/period';
@@ -16,6 +17,7 @@ const dollars = (value: number) => `$${value.toFixed(2)}`;
 const count = (value: number) => `${value} ${value === 1 ? 'run' : 'runs'}`;
 export default function Spend() {
   const colors = useColors();
+  const router = useRouter();
   const { period, setPeriod, ready } = useSpendPeriod();
   const { data, loading, error, refetch } = useSpend(period, ready);
   const [issuesExpanded, setIssuesExpanded] = useState(false);
@@ -180,24 +182,29 @@ export default function Spend() {
                       BY AGENT
                     </Text>
                     {data.agents.slice(0, agentsExpanded ? undefined : 10).map((row) => (
-                      <Box
+                      <NavigationRow
                         key={row.agentId}
                         testID={`spend-agent-${row.agentId}`}
-                        className="gap-2"
+                        accessibilityLabel={`View runs by ${row.agentName}`}
+                        onPress={() =>
+                          router.navigate({ pathname: '/(tabs)', params: { agent: row.agentId } })
+                        }
                       >
-                        <Text style={{ color: colors.text }}>{row.agentName}</Text>
-                        <Text style={muted}>
-                          {dollars(row.costUsd)} · {count(row.runs)}
-                        </Text>
-                        <Progress
-                          accessibilityLabel={`${row.agentName} relative spend`}
-                          ratio={
-                            data.agents[0].costUsd > 0 ? row.costUsd / data.agents[0].costUsd : 0
-                          }
-                          level="ok"
-                          style={{ height: 4 }}
-                        />
-                      </Box>
+                        <Box className="flex-1 gap-2">
+                          <Text style={{ color: colors.text }}>{row.agentName}</Text>
+                          <Text style={muted}>
+                            {dollars(row.costUsd)} · {count(row.runs)}
+                          </Text>
+                          <Progress
+                            accessibilityLabel={`${row.agentName} relative spend`}
+                            ratio={
+                              data.agents[0].costUsd > 0 ? row.costUsd / data.agents[0].costUsd : 0
+                            }
+                            level="ok"
+                            style={{ height: 4 }}
+                          />
+                        </Box>
+                      </NavigationRow>
                     ))}
                     {data.agents.length > 10 && (
                       <TextButton

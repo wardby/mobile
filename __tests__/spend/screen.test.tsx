@@ -8,7 +8,9 @@ import fixture from '../../src/api/__fixtures__/graph.json';
 import type { Graph } from '../../src/spend/helpers';
 import { theme } from '../../components/ui/theme';
 let mockFocus: () => void;
+const mockNavigate = jest.fn();
 jest.mock('expo-router', () => ({
+  useRouter: () => ({ navigate: mockNavigate }),
   useFocusEffect: (callback: () => void) => {
     const React = jest.requireActual('react');
     React.useEffect(() => {
@@ -164,4 +166,13 @@ test('restores saved period across launches', async () => {
       expect.objectContaining({ selected: true }),
     ),
   );
+});
+
+test('agent spend row opens the Runs tab with only the agent param', async () => {
+  await render(<Spend />);
+  const row = await screen.findByTestId('spend-agent-a0');
+  expect(row).toHaveProp('accessibilityLabel', 'View runs by Agent 0');
+  expect(row).toHaveTextContent(/›/);
+  await fireEvent.press(row);
+  expect(mockNavigate).toHaveBeenCalledWith({ pathname: '/(tabs)', params: { agent: 'a0' } });
 });
