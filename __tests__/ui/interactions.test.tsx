@@ -1,3 +1,4 @@
+import tailwindConfig from '../../tailwind.config';
 import * as ThemeProvider from '../../components/ui/provider';
 import ChevronDown from 'lucide-react-native/icons/chevron-down';
 import ChevronUp from 'lucide-react-native/icons/chevron-up';
@@ -173,12 +174,10 @@ test.each(['light', 'dark'] as const)(
       'accessibilityState',
       expect.objectContaining({ expanded: false, disabled: false }),
     );
-    expect(screen.getByTestId('menu')).toHaveStyle({
-      borderWidth: Native.StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      backgroundColor: colors.fill,
-      minHeight: 44,
-    });
+    expect(screen.getByTestId('menu')).toHaveStyle({ minHeight: 44 });
+    expect(screen.getByTestId('menu').props.className.split(' ')).toEqual(
+      expect.arrayContaining(['border', 'border-border', 'bg-fill', 'rounded-lg']),
+    );
     expect(screen.getByTestId('menu').props.className).toContain('rounded-lg');
     expect(screen.getByTestId('menu').props.className).toContain('px-3');
     expect(screen.getByText('All agents')).toHaveStyle({ color: colors.text });
@@ -204,7 +203,10 @@ test.each(['light', 'dark'] as const)(
         onPress={press}
       />,
     );
-    expect(screen.getByTestId('menu')).toHaveStyle({ borderColor: colors.tint });
+    expect(screen.getByTestId('menu').props.className.split(' ')).toEqual(
+      expect.arrayContaining(['border', 'border-accent', 'bg-fill', 'rounded-lg']),
+    );
+    expect(screen.getByTestId('menu').props.className.split(' ')).not.toContain('border-border');
     expect(screen.getByText('Builder')).toHaveStyle({ color: colors.tint });
     expect(icon).toHaveBeenLastCalledWith(expect.objectContaining({ as: ChevronUp }), undefined);
     expect(screen.getByTestId('menu')).toHaveProp(
@@ -232,3 +234,33 @@ test.each([
     expect(screen.getByTestId('fill')).toHaveStyle({ backgroundColor: fill });
   },
 );
+
+test.each([false, true])(
+  'menu button omits inline border and fill when active is %s',
+  async (active) => {
+    await render(<MenuButton testID="menu" label="Agent" expanded={false} active={active} />);
+    const style = Native.StyleSheet.flatten(screen.getByTestId('menu').props.style);
+    for (const property of ['borderWidth', 'borderColor', 'backgroundColor']) {
+      expect(style).not.toHaveProperty(property);
+    }
+  },
+);
+
+test('selected text button uses accent fill without an inline underline', async () => {
+  await render(
+    <TextButton
+      testID="selected"
+      label="All"
+      selectedFill
+      accessibilityState={{ selected: true }}
+    />,
+  );
+  expect(screen.getByTestId('selected').props.className.split(' ')).toContain('bg-accent');
+  const style = Native.StyleSheet.flatten(screen.getByTestId('selected').props.style);
+  expect(style).not.toHaveProperty('borderBottomWidth');
+  expect(style).not.toHaveProperty('borderBottomColor');
+});
+
+test('Tailwind exposes the fill theme token', () => {
+  expect(tailwindConfig.theme.extend.colors.fill).toBe('rgb(var(--color-fill) / <alpha-value>)');
+});

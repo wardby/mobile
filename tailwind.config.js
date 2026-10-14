@@ -4,6 +4,7 @@ const tokens = [
   'foreground',
   'muted',
   'border',
+  'fill',
   'destructive',
   'accent',
   'offline',
