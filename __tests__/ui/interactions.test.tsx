@@ -1,7 +1,11 @@
-import { theme } from '../../components/ui/theme';
+import * as ThemeProvider from '../../components/ui/provider';
+import ChevronDown from 'lucide-react-native/icons/chevron-down';
+import ChevronUp from 'lucide-react-native/icons/chevron-up';
+import * as Icons from '../../components/ui/icon';
+import { theme, themeVariables } from '../../components/ui/theme';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as Native from 'react-native';
-import { ExternalLink, NavigationRow, TextButton } from '../../src/ui/interactions';
+import { ExternalLink, MenuButton, NavigationRow, TextButton } from '../../src/ui/interactions';
 import { useColors } from '../../src/navigation/styles';
 
 // Jest's native View mock omits the Android ripple commands.
@@ -143,3 +147,88 @@ describe.each(['ios', 'android', 'web'] as const)('%s accent', (platform) => {
     ).toBeGreaterThanOrEqual(4.5);
   });
 });
+
+test.each(['light', 'dark'] as const)(
+  'menu button appearance and interaction in %s mode',
+  async (mode) => {
+    jest.spyOn(Native, 'useColorScheme').mockReturnValue(mode);
+    const colors = theme[mode];
+    const icon = jest.spyOn(Icons, 'Icon');
+    jest.spyOn(ThemeProvider, 'useTheme').mockReturnValue(colors);
+    const press = jest.fn();
+    const view = await render(
+      <MenuButton
+        testID="menu"
+        label="All agents"
+        expanded={false}
+        active={false}
+        accessibilityLabel="Agent, All agents"
+        accessibilityHint="Opens the agent menu"
+        onPress={press}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Agent, All agents' })).toBeTruthy();
+    expect(screen.getByTestId('menu')).toHaveProp('accessibilityHint', 'Opens the agent menu');
+    expect(screen.getByTestId('menu')).toHaveProp(
+      'accessibilityState',
+      expect.objectContaining({ expanded: false, disabled: false }),
+    );
+    expect(screen.getByTestId('menu')).toHaveStyle({
+      borderWidth: Native.StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      backgroundColor: colors.fill,
+      minHeight: 44,
+    });
+    expect(screen.getByTestId('menu').props.className).toContain('rounded-lg');
+    expect(screen.getByTestId('menu').props.className).toContain('px-3');
+    expect(screen.getByText('All agents')).toHaveStyle({ color: colors.text });
+    expect(screen.getByText('All agents')).toHaveProp('numberOfLines', 1);
+    expect(icon).toHaveBeenLastCalledWith(expect.objectContaining({ as: ChevronDown }), undefined);
+    expect(icon).toHaveBeenLastCalledWith(expect.objectContaining({ size: 17 }), undefined);
+    expect(icon).toHaveBeenLastCalledWith(
+      expect.objectContaining({ color: colors.muted }),
+      undefined,
+    );
+    expect(screen.getByTestId('menu')).not.toHaveTextContent(/[▾▴]/);
+    await expectFeedback('menu');
+    await fireEvent.press(screen.getByTestId('menu'));
+    expect(press).toHaveBeenCalledTimes(1);
+    await view.rerender(
+      <MenuButton
+        testID="menu"
+        label="Builder"
+        expanded
+        active
+        disabled
+        accessibilityState={{ selected: true }}
+        onPress={press}
+      />,
+    );
+    expect(screen.getByTestId('menu')).toHaveStyle({ borderColor: colors.tint });
+    expect(screen.getByText('Builder')).toHaveStyle({ color: colors.tint });
+    expect(icon).toHaveBeenLastCalledWith(expect.objectContaining({ as: ChevronUp }), undefined);
+    expect(screen.getByTestId('menu')).toHaveProp(
+      'accessibilityState',
+      expect.objectContaining({ expanded: true, disabled: true, selected: true }),
+    );
+    await fireEvent.press(screen.getByTestId('menu'));
+    expect(press).toHaveBeenCalledTimes(1);
+  },
+);
+
+test.each([
+  ['light', '#f2f2f7', '242 242 247'],
+  ['dark', '#2c2c2e', '44 44 46'],
+] as const)(
+  'fill token is available through the theme and colors in %s mode',
+  async (mode, fill, variable) => {
+    jest.spyOn(Native, 'useColorScheme').mockReturnValue(mode);
+    expect(theme[mode].fill).toBe(fill);
+    expect(themeVariables(mode)['--color-fill']).toBe(variable);
+    function Sample() {
+      return <Native.View testID="fill" style={{ backgroundColor: useColors().fill }} />;
+    }
+    await render(<Sample />);
+    expect(screen.getByTestId('fill')).toHaveStyle({ backgroundColor: fill });
+  },
+);

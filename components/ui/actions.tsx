@@ -1,3 +1,7 @@
+import ChevronDown from 'lucide-react-native/icons/chevron-down';
+import ChevronUp from 'lucide-react-native/icons/chevron-up';
+import { StyleSheet } from 'react-native';
+import { Icon } from './icon';
 import { cn } from 'tailwind-variants';
 import type { ReactNode } from 'react';
 import type { PressableProps } from 'react-native';
@@ -107,6 +111,51 @@ export function TextButton({
           {expanded ? '▴' : '▾'}
         </Text>
       )}
+    </Button>
+  );
+}
+
+export function MenuButton({
+  label,
+  expanded,
+  active,
+  numberOfLines = 1,
+  accessibilityState,
+  style,
+  className = '',
+  ...props
+}: ControlProps & {
+  label: string;
+  expanded: boolean;
+  active: boolean;
+  numberOfLines?: number;
+}) {
+  const colors = useColors();
+  return (
+    <Button
+      accessibilityLabel={label}
+      {...props}
+      accessibilityRole="button"
+      accessibilityState={{ ...accessibilityState, expanded, disabled: !!props.disabled }}
+      className={cn('flex-row items-center gap-2 justify-center rounded-lg px-3', className)}
+      style={(state) => [
+        {
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: active ? colors.tint : colors.border,
+          backgroundColor: colors.fill,
+        },
+        typeof style === 'function' ? style(state) : style,
+      ]}
+    >
+      <Text
+        className="text-[17px] font-semibold shrink"
+        style={{ color: active ? colors.tint : colors.text }}
+        numberOfLines={numberOfLines}
+        ellipsizeMode="tail"
+      >
+        {label}
+      </Text>
+      <Icon as={expanded ? ChevronUp : ChevronDown} size={17} color={colors.muted} />
     </Button>
   );
 }

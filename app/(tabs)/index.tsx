@@ -9,7 +9,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { AppState, FlatList, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TextButton } from '../../src/ui/interactions';
+import { MenuButton, TextButton } from '../../src/ui/interactions';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
 import { useColors } from '../../src/navigation/styles';
 import { rowHeight, RunRow } from '../../src/runs/RunRow';
@@ -133,9 +133,10 @@ export default function Runs() {
           style={{ backgroundColor: colors.background, borderColor: colors.muted }}
           className="rounded-lg border p-1"
           trigger={(props, { open }) => (
-            <TextButton
+            <MenuButton
               {...props}
               testID="runs-agent"
+              active={selectedAgent !== null}
               label={agentName ?? 'All agents'}
               expanded={open}
               numberOfLines={1}
@@ -184,9 +185,10 @@ export default function Runs() {
           style={{ backgroundColor: colors.background, borderColor: colors.muted }}
           className="rounded-lg border p-1"
           trigger={(props, { open }) => (
-            <TextButton
+            <MenuButton
               {...props}
               testID="runs-filter"
+              active={filter !== 'all'}
               label={selected.label}
               expanded={open}
               accessibilityLabel={`Status, ${selected.label}`}
@@ -222,9 +224,10 @@ export default function Runs() {
           style={{ backgroundColor: colors.background, borderColor: colors.muted }}
           className="rounded-lg border p-1"
           trigger={(props, { open }) => (
-            <TextButton
+            <MenuButton
               {...props}
               testID="runs-range"
+              active={range !== '24h'}
               label={range}
               expanded={open}
               accessibilityLabel={`Time range, ${timeRange.label.toLowerCase()}`}

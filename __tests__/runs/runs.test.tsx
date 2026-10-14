@@ -1,3 +1,4 @@
+import * as ThemeProvider from '../../components/ui/provider';
 import { theme } from '../../components/ui/theme';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { ExpoRoot, router } from 'expo-router';
@@ -495,5 +496,37 @@ test.each(['builder', 'all'])(
     await fireEvent.press(await screen.findByTestId('spend-agent-planner'));
     expect(screen.getByTestId('runs-agent')).toHaveTextContent(/Planner/);
     expect(rowIds()).toEqual(['run-row-run-parent']);
+  },
+);
+
+test.each(['light', 'dark'] as const)(
+  'filter buttons highlight non-default choices and reset in %s mode',
+  async (mode) => {
+    jest.spyOn(ThemeProvider, 'useTheme').mockReturnValue(theme[mode]);
+    jest.spyOn(ReactNative, 'useColorScheme').mockReturnValue(mode);
+    state.graph = graphOf([run('builder', { agentId: 'builder', agentName: 'Builder' })]);
+    await render(app());
+    const colors = theme[mode];
+    for (const [id, choice, defaultChoice] of [
+      ['runs-agent', 'builder', 'all'],
+      ['runs-filter', 'failed', 'all'],
+      ['runs-range', '1h', '24h'],
+    ]) {
+      const label = () => within(screen.getByTestId(id)).getByText(/./);
+      expect(screen.getByTestId(id)).toHaveStyle({
+        borderWidth: ReactNative.StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        backgroundColor: colors.fill,
+      });
+      expect(label()).toHaveStyle({ color: colors.text });
+      await fireEvent.press(screen.getByTestId(id));
+      await fireEvent.press(screen.getByTestId(id + '-' + choice));
+      expect(screen.getByTestId(id)).toHaveStyle({ borderColor: colors.tint });
+      expect(label()).toHaveStyle({ color: colors.tint });
+      await fireEvent.press(screen.getByTestId(id));
+      await fireEvent.press(screen.getByTestId(id + '-' + defaultChoice));
+      expect(screen.getByTestId(id)).toHaveStyle({ borderColor: colors.border });
+      expect(label()).toHaveStyle({ color: colors.text });
+    }
   },
 );
