@@ -27,3 +27,30 @@ describe('EAS project identity', () => {
     jest.dontMock('../app.identity.ts');
   });
 });
+
+describe('TestFlight branding', () => {
+  it('declares exempt encryption', () => {
+    expect(config.ios?.infoPlist?.ITSAppUsesNonExemptEncryption).toBe(false);
+  });
+  it('configures PNG icons on every platform', () => {
+    expect(config.icon).toBe('./assets/images/icon.png');
+    expect(config.android?.adaptiveIcon).toEqual({
+      foregroundImage: './assets/images/adaptive-icon.png',
+      backgroundColor: '#071d3b',
+      monochromeImage: './assets/images/monochrome-icon.png',
+    });
+    expect(config.web?.favicon).toBe('./assets/images/favicon.png');
+  });
+  it('uses the local mascot on light and dark splash backgrounds', () => {
+    expect(config.plugins).toContainEqual([
+      'expo-splash-screen',
+      {
+        image: './assets/images/splash-mascot.png',
+        imageWidth: 200,
+        resizeMode: 'contain',
+        backgroundColor: '#ffffff',
+        dark: { image: './assets/images/splash-mascot.png', backgroundColor: '#071d3b' },
+      },
+    ]);
+  });
+});
