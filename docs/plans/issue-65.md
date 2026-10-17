@@ -147,12 +147,105 @@ There is no polling, no `fetch` and no new event-stream code.
 - Every control has an accessible label and a `testID`. No `style` function on a control that also has a `className`.
 - The route is not yet linked from the app UI. Ticket 6 adds the entry, and until then it can be reached only by its URL.
 
+**Wireframes.** The layout this ticket builds, one frame per state. The Settings row (frame A) is added in ticket 6 and is shown only as the entry point. The Native agents section in frames D and E is added in ticket 5 and is shown so the whole screen is visible. Values in angle brackets come from the fixture under test. Nothing here adds a field outside `infra-info`.
+
+```text
+A. Entry point: Settings tab (row added in ticket 6)
++--------------------------------------+
+| Settings                             |
+|                                      |
+| SERVER                               |
+| <host>                  settings-host|
+| +----------------------------------+ |
+| | Infrastructure                 › | |  settings-infrastructure
+| +----------------------------------+ |  "View infrastructure"
+|                                      |
+| APPEARANCE                           |
+| [ System ] [ Light ] [ Dark ]        |
+| ...                                  |
++--------------------------------------+
+| Runs       |  Spend     | Settings * |  (still 3 tabs)
++--------------------------------------+
+          | press -> router.push('/infra')
+          v
+
+B. Loading (no data yet)               testID="infra-loading"
++--------------------------------------+
+| ‹ Settings      Infrastructure       |  infra-header-back
++--------------------------------------+
+|                                      |
+|                 ( o )                |  Spinner
+|        Loading infrastructure…       |
+|                                      |
++--------------------------------------+
+
+C. Error (500, 403 or network)         testID="infra-error"
++--------------------------------------+
+| ‹ Settings      Infrastructure       |
++--------------------------------------+
+|                                      |
+|     Couldn't load infrastructure.    |
+|                                      |
+|               [ Retry ]              |  infra-retry -> refetch()
+|                                      |
++--------------------------------------+
+  (401 never shows this frame: the client signs out
+   and the guard returns the user to connect.)
+
+D. Loaded, Kubernetes                  fixture: infra-kubernetes.json
++--------------------------------------+
+| ‹ Settings      Infrastructure       |
++--------------------------------------+
+|   (pull down to refresh)             |  infra-refresh
+| CODING LAUNCHER                      |  infra-coding (header)
+| Launcher           Kubernetes        |  infra-coding-launcher
+| +- infra-coding-kubernetes --------+ |
+| | Namespace        <namespace>     | |
+| | Platform         <platform>      | |
+| | Runtime class    <runtimeClass>  | |
+| | Proxy service    <proxyService>  | |
+| | Run label        <runLabel>      | |
+| | Run label hash   <n> characters  | |
+| | Component labels <key>=<value>   | |
+| | Managed-by       <key>=<value>   | |
+| +----------------------------------+ |
+|                                      |
+| NATIVE AGENTS          (ticket 5)    |  infra-native (header)
+| Launcher           Kubernetes        |  infra-native-launcher
+| Warm pool          3 workers         |  infra-native-warm-pool
+| +- infra-native-kubernetes --------+ |
+| | Namespace        <namespace>     | |
+| | Runtime class    Default         | |  (null runtimeClass)
+| | Run label        <runLabel>      | |
+| | Component labels <key>=<value>   | |
+| | Warm pool labels <key>=<value>   | |
+| | Warm worker      <label>         | |
+| +----------------------------------+ |
++--------------------------------------+
+
+E. Not configured                      fixture: infra-unconfigured.json
++--------------------------------------+
+| ‹ Settings      Infrastructure       |
++--------------------------------------+
+| CODING LAUNCHER                      |
+| Launcher   Local (on the server host)|  infra-coding-launcher
+|                                      |  (no Kubernetes block; the
+|                                      |   schema has no "none" value)
+| NATIVE AGENTS          (ticket 5)    |
+| Native agents aren't configured on   |  infra-native-not-configured
+| this server.                         |  (muted text)
++--------------------------------------+
+```
+
+Long values wrap onto the next line and are never cut off. With `infra.json` (Docker) the screen looks like frame D with "Docker", "2 workers" and no Kubernetes blocks. When `launcher` is `kubernetes` but `kubernetes` is `null`, the Kubernetes block in frame D is replaced by "Kubernetes details not reported" (`infra-coding-kubernetes-missing`).
+
 **Acceptance criteria**
 
 - [ ] The loading, error-with-retry and content states each render with the testIDs above, and Retry calls `refetch`.
 - [ ] Pull-to-refresh calls `refetch`, and `refreshing` follows `loading`.
 - [ ] `infra.json` shows "Docker" and no Kubernetes block. `infra-kubernetes.json` shows "Kubernetes" and every coding Kubernetes row. `infra-unconfigured.json` shows "Local (on the server host)".
 - [ ] A `403` shows the error state, not a sign-out. A `401` leaves sign-out to the client (as on other screens).
+- [ ] The screen matches wireframes B, C, D (coding section) and E (coding section): same order, labels and testIDs.
 - [ ] Light and dark mode both render with theme colours (as `__tests__/spend/screen.test.tsx` checks).
 - [ ] `app/_layout.tsx` registers the route only inside the signed-in guard.
 - [ ] AGENTS.md definition of done.
