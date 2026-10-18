@@ -25,7 +25,7 @@ Data comes from the existing typed client call `getInfra()` in `src/api/client.t
 - Errors: `401` and `403` both return `{ "error": "invalid_token" }`, `405` returns `method_not_allowed`, and `default` (500) returns `{ "error": "internal_error", "id": "…" }`.
 - The live event stream (`/admin/api/events`) only sends `hello`, `run`, `service`, `outcome`, `status` and `resync` frames. None of them carries infrastructure data.
 
-**Freshness decision.** The screen reloads when its tab gains focus, when the app returns to the foreground (`AppState` → `active`) and on pull-to-refresh. **No `run`, `service` or `outcome` event triggers a reload.** They describe runs, not deployment configuration, and reloading on every run event would hit the server for nothing. Only the existing `resyncVersion` from `useLiveGraph()` triggers a reload (ticket 7). A `resync` happens when the server's live connection comes back, which includes a server restart, and a restart is when the infrastructure configuration can change. This uses the shared stream from `LiveGraphProvider` (in `app/_layout.tsx`) and adds no polling, so the AGENTS.md "Live data" rules hold.
+**Freshness decision.** The screen reloads when its tab gains focus, when the app returns to the foreground (`AppState` → `active`) and on pull-to-refresh. A focus event and a foreground event that arrive together are coalesced into one request (ticket 3). **No `run`, `service` or `outcome` event triggers a reload.** They describe runs, not deployment configuration, and reloading on every run event would hit the server for nothing. Only the existing `resyncVersion` from `useLiveGraph()` triggers a reload (ticket 7). A `resync` happens when the server's live connection comes back, which includes a server restart, and a restart is when the infrastructure configuration can change. This uses the shared stream from `LiveGraphProvider` (in `app/_layout.tsx`) and adds no polling, so the AGENTS.md "Live data" rules hold.
 
 **How 401/403 are handled, the same way as the other screens.** The hook gets its client from `session.apiClient()` (the same as `useRunDetail`). On `401`, that client calls `onUnauthorized` → `session.signOut()`, and the root `Stack.Protected` guard sends the user back to `connect`. A `403` (or any other error) shows the screen's error state with **Retry**, which is how `app/(tabs)/spend.tsx` and `app/runs/[id].tsx` handle it today.
 
@@ -112,11 +112,14 @@ It reads only fields in the schema. The types come from `src/api/schema.ts`.
 - It returns `{ infra, loading, error, refetch }`.
 - `refetch` gets the client from `session.apiClient()` and calls `getInfra()`. A missing client becomes `ApiError(0, 'network_error')`.
 - It uses a request counter (the `request` ref pattern) so stale responses and responses after unmount are dropped.
-- It loads when the screen gains focus (`useFocusEffect` from `expo-router`, which also fires when the user switches to the tab) and when `AppState` changes to `active`. The listener is removed on unmount.
+- It loads automatically on two triggers:
+  - **Focus:** `useFocusEffect` from `expo-router` (as in `useSpend`), which also fires when the user switches to the tab.
+  - **Foreground:** an `AppState` `change` listener that loads when the state becomes `active`. The listener is added inside the `useFocusEffect` callback and removed in its cleanup, so it only runs while the screen is focused and is gone after blur or unmount. Returning to the foreground on another tab doesn't call `getInfra()`.
+- **Focus and foreground are coalesced.** A focus event and an `AppState` `active` event that arrive together (in either order, in the same tick or while the load started by the first one is still in flight) cause **one** `getInfra()` call, not two. The hook keeps an "automatic load in flight" flag (a ref next to `request`): an automatic trigger that arrives while it is set joins the running load and doesn't start a new one. The flag clears when that load settles, so a later focus or foreground starts a fresh load. Explicit calls to `refetch` (Retry and pull-to-refresh in ticket 4) are not coalesced: they always start a new request, and the request counter drops the older response.
 - It keeps the last good `infra` while it refetches, so pull-to-refresh doesn't blank the screen.
 - `401` handling stays in the client: `session.apiClient()`'s `onUnauthorized` signs out. The hook only exposes the `ApiError`.
 
-There is no polling, no `fetch` and no new event-stream code.
+There is no polling, no `fetch` and no new event-stream code. The hook adds no screen, so this ticket has no wireframe.
 
 **Acceptance criteria**
 
@@ -124,11 +127,20 @@ There is no polling, no `fetch` and no new event-stream code.
 - [ ] On success `infra` matches the fixture and `error` is `null`.
 - [ ] On a `500`, `403` or network failure, `error` is the `ApiError` and the previous `infra` is kept.
 - [ ] On a `401`, the client's `onUnauthorized` is called (sign-out), and the hook neither throws nor loops.
-- [ ] An `AppState` change to `active` triggers exactly one refetch. `background` doesn't trigger one.
+- [ ] While focused, an `AppState` change to `active` (with no focus event) triggers exactly one `getInfra()` call. `background` and `inactive` trigger none.
+- [ ] A focus event and an `AppState` `active` event arriving together, in either order, cause exactly one `getInfra()` call, not two.
+- [ ] After that coalesced load settles, a new `active` event triggers exactly one more call (coalescing is not permanent).
+- [ ] After blur or unmount, an `AppState` change to `active` triggers no call, and the `AppState` subscription's `remove()` has been called.
+- [ ] Calling `refetch()` while an automatic load is in flight starts a new request, and only the newest response updates `infra`.
 - [ ] A late response after unmount or a newer request doesn't update state.
 - [ ] AGENTS.md definition of done.
 
-**Tests.** New `__tests__/infra/useInfra.test.tsx`. It mocks `../../src/auth/session` (`session.apiClient`) and `expo-router` (`useFocusEffect`) as `__tests__/runs/detail.test.tsx` and `__tests__/spend/screen.test.tsx` do. It runs against `infra.json` and `infra-kubernetes.json`, plus `invalid_token.json` (401 and 403) and `internal_error.json` (500) wrapped in `ApiError` exactly as `createApiClient` would produce them.
+**Tests.** New `__tests__/infra/useInfra.test.tsx`, rendering the hook in a small test component:
+
+- Mocks: `../../src/auth/session` (`session.apiClient` returns an object with a `getInfra` `jest.fn()`), and `expo-router`'s `useFocusEffect` captured into a `mockFocus` callback, as `__tests__/spend/screen.test.tsx` does. `AppState.addEventListener` from `react-native` is replaced with `jest.spyOn` so the test keeps the `change` handler and a `remove` mock.
+- Fixtures: `infra.json` and `infra-kubernetes.json`, plus `invalid_token.json` (401 and 403) and `internal_error.json` (500), wrapped in `ApiError` exactly as `createApiClient` would produce them.
+- **New coalescing test** (`test.each` over both orders, "focus then active" and "active then focus"): `getInfra` returns a deferred promise. Inside one `act()` the test fires `mockFocus()` and the captured `AppState` handler with `'active'`. It asserts `getInfra` was called **exactly once** (`toHaveBeenCalledTimes(1)`). It then resolves the promise with `infra.json` and asserts `infra` equals the fixture and `loading` is `false`. Finally it fires `'active'` again and asserts `getInfra` has been called twice in total.
+- Further tests, one per acceptance item above: `active` alone triggers one call, `background`/`inactive` trigger none, no call after blur or unmount (and `remove` called), error mapping for 401/403/500 with the previous `infra` kept, `refetch()` during an in-flight automatic load, and stale-response dropping.
 
 **Depends on.** Ticket 1.
 
@@ -367,12 +379,21 @@ T3. 320 pt wide phone, fontScale 2 (labels 28 pt, ~80 pt per tab)
 - [ ] `app/(tabs)/settings.tsx` is unchanged and has no Infrastructure row.
 - [ ] AGENTS.md definition of done.
 
-**Tests.** In `__tests__/navigation.test.tsx`:
+**Tests.** This ticket changes exactly two test files and no others.
 
-- Add `'(tabs)/infra': Infra` to `getMockContext`, and give the mocked `session` an `apiClient` whose `getInfra` resolves `src/api/__fixtures__/infra.json`.
-- Add `'Infra'` to the "tabs switch between labelled screens" loop, press `tab-infra`, and check that `infra-coding-launcher` shows "Docker".
-- Add `'infra'` to the existing #23 "tab bar has readable scaling labels" loop.
-- Add a new test that mocks `useWindowDimensions` with `width: 320`, `fontScale: 2`. It checks that the four tab buttons appear in the order `tab-runs`, `tab-spend`, `tab-infra`, `tab-settings`, that `tab-infra-label` has the text "Infra", `allowFontScaling` and `fontSize: 14`, that no tab label has a `numberOfLines` prop, and that each tab item has `minWidth: 44` and `minHeight: 44`.
+1. **`__tests__/navigation.test.tsx`** (changed). Setup: import `Infra` from `app/(tabs)/infra`, add `'(tabs)/infra': Infra` to `getMockContext`, and give the mocked `session` an `apiClient` whose `getInfra` resolves `src/api/__fixtures__/infra.json`. It checks:
+   - "tabs switch between labelled screens" (light and dark): the loop over tab names becomes `['Runs', 'Spend', 'Infra', 'Settings']`, so `tab-infra` has `accessibilityLabel` "Infra". After pressing `tab-infra`, `infra-coding-launcher` shows "Docker" and the header shows "Infrastructure". Pressing `tab-settings` still shows `settings-host`.
+   - "tab bar has readable scaling labels, icons and large targets" (#23, light and dark): the loop becomes `['runs', 'spend', 'infra', 'settings']`, so `tab-infra` also has a 44×44 item, `tab-infra-label` has `allowFontScaling` and `fontSize: 14`, and `tab-infra-icon` exists. New lines: before pressing, `tab-infra-icon` shows `server-outline` and `tab-infra-label` has `fontWeight: '400'`. After pressing `tab-infra`, the icon shows `server` and the label has `fontWeight: '700'`.
+   - New test "four tabs fit a 320 pt wide phone at fontScale 2": it mocks `useWindowDimensions` with `width: 320`, `height: 568`, `fontScale: 2`. It checks that the tab buttons appear in the order `tab-runs`, `tab-spend`, `tab-infra`, `tab-settings` (by their order in the rendered tree), that `tab-infra-label` has exactly the text "Infra", that every tab label has `allowFontScaling` and `fontSize: 14` and no `numberOfLines` prop, and that every tab item has `minWidth: 44` and `minHeight: 44`.
+   - The other tests in the file (sign-in, sign-out, shared live stream) keep passing without edits.
+2. **`__tests__/runs/runs.test.tsx`** (changed). Setup: import `Infra`, add `'(tabs)/infra': Infra` to its `getMockContext` so the mocked route tree matches the real tab layout, and add a `getInfra` that resolves `infra.json` to the mocked `session.apiClient()` next to `getRun`. It checks: in "the selected filter survives a tab switch", the test also presses `tab-infra`, sees `infra-coding-launcher`, then presses `tab-runs`, and the `failed` filter is still selected. All its other tests pass without edits.
+
+Not changed, on purpose:
+
+- `__tests__/infra/screen.test.tsx` and `__tests__/infra/useInfra.test.tsx`: the screen and hook don't change, and they already cover the screen's states (tickets 3–5).
+- `__tests__/spend/screen.test.tsx` and `__tests__/settings/appearance.test.tsx`: they render their screens directly, not the tab bar.
+
+Fixture: only the existing `src/api/__fixtures__/infra.json`. No new fixture is needed.
 
 **Depends on.** Ticket 5.
 
