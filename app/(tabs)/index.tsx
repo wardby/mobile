@@ -12,7 +12,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MenuButton, TextButton } from '../../src/ui/interactions';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
 import { useColors } from '../../src/navigation/styles';
-import { rowHeight, RunRow } from '../../src/runs/RunRow';
+import { asChains, eventLabel, prRefOf, type Run } from '../../src/runs/prChains';
+import { ChainHeading } from '../../src/runs/ChainHeading';
+import { statusStyle } from '../../src/runs/status';
+import { useThemeMode } from '../../components/ui/provider';
+import { RunRow } from '../../src/runs/RunRow';
 import type { RunStatus } from '../../src/runs/status';
 
 type Filter = 'all' | 'running' | 'failed';
@@ -31,6 +35,7 @@ const filters: { key: Filter; label: string; empty: string; statuses?: RunStatus
 export default function Runs() {
   const { graph, refresh, range, setRange } = useLiveGraph();
   const colors = useColors();
+  const mode = useThemeMode();
   const router = useRouter();
   const { agent: agentParam, agentNavigation } = useLocalSearchParams<{
     agent?: string;
@@ -73,7 +78,7 @@ export default function Runs() {
   }
   const selected = filters.find((item) => item.key === filter)!;
 
-  const { runs, subRuns } = useMemo(() => {
+  const { entries, subRuns } = useMemo(() => {
     const subRuns = new Map<string, number>();
     for (const run of graph?.runs ?? [])
       if (run.parentRunId !== null)
@@ -82,10 +87,14 @@ export default function Runs() {
       .filter((run) => Date.parse(run.startedAt) > now - timeRange.duration)
       .filter((run) => run.parentRunId === null)
       .filter((run) => matchesAgent(run, selectedAgent))
-      .filter((run) => !selected.statuses || selected.statuses.includes(run.status))
       .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
-    return { runs, subRuns };
-  }, [graph, selected, selectedAgent, now, timeRange]);
+    const entries = asChains(runs, graph?.runs ?? []).filter((entry) =>
+      entry.kind === 'group'
+        ? filter === 'all' || entry.state === filter
+        : !selected.statuses || selected.statuses.includes(entry.run.status),
+    );
+    return { entries, subRuns };
+  }, [graph, selected, filter, selectedAgent, now, timeRange]);
 
   // Keep the relative start times current.
   useEffect(() => {
@@ -267,17 +276,36 @@ export default function Runs() {
       ) : (
         <FlatList
           testID="runs-list"
-          data={runs}
-          keyExtractor={(run) => run.id}
-          getItemLayout={(_, index) => ({ length: rowHeight, offset: rowHeight * index, index })}
-          renderItem={({ item }) => (
-            <RunRow
-              run={item}
-              subRuns={subRuns.get(item.id) ?? 0}
-              now={now}
-              onPress={() => router.push({ pathname: '/runs/[id]', params: { id: item.id } })}
-            />
-          )}
+          data={entries}
+          keyExtractor={(entry) =>
+            entry.kind === 'group' ? 'group:' + entry.key : 'run:' + entry.run.id
+          }
+          renderItem={({ item }) => {
+            const row = (run: Run, grouped = false) => (
+              <RunRow
+                key={run.id}
+                run={run}
+                subRuns={subRuns.get(run.id) ?? 0}
+                now={now}
+                event={eventLabel(run, graph.runs)}
+                referenceLabel={grouped ? undefined : prRefOf(run, graph.runs)?.label}
+                onPress={() => router.push({ pathname: '/runs/[id]', params: { id: run.id } })}
+              />
+            );
+            return item.kind === 'run' ? (
+              row(item.run)
+            ) : (
+              <Box>
+                <ChainHeading group={item} />
+                <Box
+                  className="ml-4 border-l-2"
+                  style={{ borderColor: statusStyle(item.state)[mode].text }}
+                >
+                  {item.runs.map((run) => row(run, true))}
+                </Box>
+              </Box>
+            );
+          }}
           ItemSeparatorComponent={() => <Divider className="ml-4" />}
           ListEmptyComponent={
             <Box>
