@@ -17,7 +17,11 @@ export function RunRow({
   subRuns,
   now,
   onPress,
+  event = null,
+  referenceLabel,
 }: {
+  event?: string | null;
+  referenceLabel?: string;
   run: Run;
   subRuns: number;
   now: number;
@@ -30,16 +34,18 @@ export function RunRow({
   const cost = formatCost(run.costUsd);
   let details = `${started} · ${cost} of ${formatBudget(run.budgetUsd)}`;
   if (subRuns > 0) details += ` · ${subRuns} sub-run${subRuns === 1 ? '' : 's'}`;
+  if (referenceLabel) details += ` · ${referenceLabel}${event ? ` ${event}` : ''}`;
+  else if (event) details += ` · ${event}`;
   return (
     <NavigationRow
       testID={`run-row-${run.id}`}
       accessible
       accessibilityRole="button"
-      accessibilityLabel={`${run.agentName}, ${pill.label}, started ${started}, cost ${cost}`}
+      accessibilityLabel={`${run.agentName}, ${pill.label}, started ${started}, cost ${cost}${event ? `, ${event}` : ''}`}
       className="h-16 px-4"
       onPress={onPress}
     >
-      <VStack className="flex-1 gap-1">
+      <VStack className="flex-1 min-w-0 gap-1">
         <HStack className="items-center gap-2">
           <Text
             numberOfLines={1}

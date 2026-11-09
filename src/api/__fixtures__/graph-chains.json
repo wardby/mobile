@@ -1,0 +1,233 @@
+{
+  "generatedAt": "2026-10-01T10:00:00.000Z",
+  "since": "2026-10-01T10:00:00.000Z",
+  "limit": 500,
+  "truncated": false,
+  "runs": [
+    {
+      "id": "opened",
+      "parentRunId": null,
+      "agentId": "builder",
+      "agentName": "Builder",
+      "agentKind": "native",
+      "model": "planning-model",
+      "codingProvider": null,
+      "nativeExecutionMode": "control-plane",
+      "warmWorkerName": null,
+      "status": "succeeded",
+      "trigger": {
+        "kind": "manual"
+      },
+      "turns": 3,
+      "tokensIn": 1200,
+      "tokensOut": 400,
+      "costUsd": 1.13,
+      "budgetUsd": 5,
+      "startedAt": "2026-10-01T11:00:00.000Z",
+      "finishedAt": null,
+      "heartbeatAt": "2026-10-01T10:00:00.000Z",
+      "outcomes": [
+        {
+          "kind": "pull_request",
+          "provider": "github",
+          "repository": "wardby/wardby-mobile",
+          "number": 64,
+          "url": "https://github.com/wardby/wardby-mobile/pull/64",
+          "state": "open",
+          "at": null
+        }
+      ],
+      "declaredServices": [],
+      "services": []
+    },
+    {
+      "id": "review",
+      "parentRunId": null,
+      "agentId": "reviewer",
+      "agentName": "Reviewer",
+      "agentKind": "native",
+      "model": "planning-model",
+      "codingProvider": null,
+      "nativeExecutionMode": "control-plane",
+      "warmWorkerName": null,
+      "status": "succeeded",
+      "trigger": {
+        "kind": "code_host",
+        "provider": "github",
+        "repository": "wardby/wardby-mobile",
+        "number": 64,
+        "event": "review"
+      },
+      "turns": 3,
+      "tokensIn": 1200,
+      "tokensOut": 400,
+      "costUsd": 0.31,
+      "budgetUsd": 5,
+      "startedAt": "2026-10-01T11:20:00.000Z",
+      "finishedAt": null,
+      "heartbeatAt": "2026-10-01T10:00:00.000Z",
+      "outcomes": [],
+      "declaredServices": [],
+      "services": []
+    },
+    {
+      "id": "follow-up",
+      "parentRunId": null,
+      "agentId": "builder",
+      "agentName": "Builder",
+      "agentKind": "native",
+      "model": "planning-model",
+      "codingProvider": null,
+      "nativeExecutionMode": "control-plane",
+      "warmWorkerName": null,
+      "status": "running",
+      "trigger": {
+        "kind": "code_host",
+        "provider": "github",
+        "repository": "wardby/wardby-mobile",
+        "number": 64,
+        "event": "mention"
+      },
+      "turns": 3,
+      "tokensIn": 1200,
+      "tokensOut": 400,
+      "costUsd": 0.4,
+      "budgetUsd": 5,
+      "startedAt": "2026-10-01T11:58:00.000Z",
+      "finishedAt": null,
+      "heartbeatAt": "2026-10-01T10:00:00.000Z",
+      "outcomes": [],
+      "declaredServices": [],
+      "services": []
+    },
+    {
+      "id": "sub-builder",
+      "parentRunId": null,
+      "agentId": "other",
+      "agentName": "Other",
+      "agentKind": "native",
+      "model": "planning-model",
+      "codingProvider": null,
+      "nativeExecutionMode": "control-plane",
+      "warmWorkerName": null,
+      "status": "succeeded",
+      "trigger": {
+        "kind": "manual"
+      },
+      "turns": 3,
+      "tokensIn": 1200,
+      "tokensOut": 400,
+      "costUsd": 0.12,
+      "budgetUsd": 5,
+      "startedAt": "2026-10-01T11:10:00.000Z",
+      "finishedAt": null,
+      "heartbeatAt": "2026-10-01T10:00:00.000Z",
+      "outcomes": [],
+      "declaredServices": [],
+      "services": []
+    },
+    {
+      "id": "child",
+      "parentRunId": "sub-builder",
+      "agentId": "planner",
+      "agentName": "Planner",
+      "agentKind": "native",
+      "model": "planning-model",
+      "codingProvider": null,
+      "nativeExecutionMode": "control-plane",
+      "warmWorkerName": null,
+      "status": "succeeded",
+      "trigger": {
+        "kind": "subagent"
+      },
+      "turns": 3,
+      "tokensIn": 1200,
+      "tokensOut": 400,
+      "costUsd": 0.12,
+      "budgetUsd": 5,
+      "startedAt": "2026-10-01T11:11:00.000Z",
+      "finishedAt": null,
+      "heartbeatAt": "2026-10-01T10:00:00.000Z",
+      "outcomes": [
+        {
+          "kind": "pull_request",
+          "provider": "github",
+          "repository": "wardby/wardby",
+          "number": 212,
+          "url": "https://github.com/wardby/wardby/pull/212",
+          "state": "open",
+          "at": null
+        }
+      ],
+      "declaredServices": [],
+      "services": []
+    },
+    {
+      "id": "issue",
+      "parentRunId": null,
+      "agentId": "planner",
+      "agentName": "Planner",
+      "agentKind": "native",
+      "model": "planning-model",
+      "codingProvider": null,
+      "nativeExecutionMode": "control-plane",
+      "warmWorkerName": null,
+      "status": "succeeded",
+      "trigger": {
+        "kind": "issue",
+        "provider": "linear",
+        "issueKey": "MOB-7",
+        "url": "https://issues.example/MOB-7"
+      },
+      "turns": 3,
+      "tokensIn": 1200,
+      "tokensOut": 400,
+      "costUsd": 0.12,
+      "budgetUsd": 5,
+      "startedAt": "2026-10-01T11:05:00.000Z",
+      "finishedAt": null,
+      "heartbeatAt": "2026-10-01T10:00:00.000Z",
+      "outcomes": [],
+      "declaredServices": [],
+      "services": []
+    },
+    {
+      "id": "scheduled",
+      "parentRunId": null,
+      "agentId": "planner",
+      "agentName": "Planner",
+      "agentKind": "native",
+      "model": "planning-model",
+      "codingProvider": null,
+      "nativeExecutionMode": "control-plane",
+      "warmWorkerName": null,
+      "status": "succeeded",
+      "trigger": {
+        "kind": "scheduled",
+        "schedule": null
+      },
+      "turns": 3,
+      "tokensIn": 1200,
+      "tokensOut": 400,
+      "costUsd": 0.12,
+      "budgetUsd": 5,
+      "startedAt": "2026-10-01T11:01:00.000Z",
+      "finishedAt": null,
+      "heartbeatAt": "2026-10-01T10:00:00.000Z",
+      "outcomes": [],
+      "declaredServices": [],
+      "services": []
+    }
+  ],
+  "spend": {
+    "todayUsd": 0.36,
+    "groups": [
+      {
+        "id": "engineering",
+        "name": "Engineering",
+        "dailyBudgetUsd": null,
+        "spentTodayUsd": 0.36
+      }
+    ]
+  }
+}

@@ -530,3 +530,92 @@ test.each(['light', 'dark'] as const)(
     }
   },
 );
+
+const chainGraph = require('../../src/api/__fixtures__/graph-chains.json') as Graph;
+const loadChains = () => {
+  state.graph = { ...chainGraph, runs: chainGraph.runs.map((r) => ({ ...r })) };
+};
+
+test('chain heading, event details, singleton descendant ref and accessible labels', async () => {
+  loadChains();
+  await render(app());
+  const heading = screen.getByTestId('run-group-wardby/wardby-mobile#64');
+  expect(heading).toHaveTextContent(/wardby-mobile#64/);
+  expect(heading).toHaveTextContent(/3 runs · \$1.84/);
+  expect(heading).toHaveProp(
+    'accessibilityLabel',
+    'Pull request wardby-mobile#64, Running, 3 runs, $1.84, opens in browser',
+  );
+  expect(screen.getByTestId('run-group-state-wardby/wardby-mobile#64')).toHaveTextContent(
+    'Running',
+  );
+  for (const [id, event] of [
+    ['opened', 'opened'],
+    ['review', 'review'],
+    ['follow-up', 'follow-up'],
+  ]) {
+    expect(screen.getByTestId(`run-row-${id}`)).toHaveTextContent(new RegExp(`· ${event}`));
+    expect(screen.getByTestId(`run-row-${id}`).props.accessibilityLabel).toMatch(
+      new RegExp(`, ${event}$`),
+    );
+  }
+  const singleton = screen.getByTestId('run-row-sub-builder');
+  expect(singleton).toHaveTextContent(/· wardby#212 opened/);
+  expect(singleton.props.className).toContain('h-16');
+  expect(within(singleton).getByText(/wardby#212 opened/)).toHaveProp('numberOfLines', 1);
+});
+test('chain heading opens browser and grouped row opens detail', async () => {
+  loadChains();
+  const open = jest.spyOn(ReactNative.Linking, 'openURL').mockResolvedValue(undefined);
+  await render(app());
+  await fireEvent.press(screen.getByTestId('run-group-wardby/wardby-mobile#64'));
+  expect(open).toHaveBeenCalledWith('https://github.com/wardby/wardby-mobile/pull/64');
+  await fireEvent.press(screen.getByTestId('run-row-review'));
+  expect(screen.getByTestId('run-detail')).toBeTruthy();
+});
+test('status filters keep whole chains, while agent and range filters precede grouping', async () => {
+  loadChains();
+  const issue = chainGraph.runs.find((r) => r.id === 'issue')!;
+  state.graph!.runs.push({ ...issue, id: 'issue-failed', status: 'failed', startedAt: minutes(3) });
+  await render(app());
+  await filtered('failed', ['issue-failed', 'issue']);
+  await filtered('running', ['follow-up', 'review', 'opened']);
+  await fireEvent.press(screen.getByTestId('runs-agent'));
+  await fireEvent.press(screen.getByTestId('runs-agent-builder'));
+  expect(screen.getByTestId('run-group-wardby/wardby-mobile#64')).toHaveTextContent(
+    /2 runs · \$1.53/,
+  );
+  await filtered('all', ['follow-up', 'opened']);
+  await fireEvent.press(screen.getByTestId('runs-agent'));
+  await fireEvent.press(screen.getByTestId('runs-agent-reviewer'));
+  expect(screen.queryByTestId('run-group-wardby/wardby-mobile#64')).toBeNull();
+  expect(screen.getByTestId('run-row-review')).toHaveTextContent(/wardby-mobile#64 review/);
+  await fireEvent.press(screen.getByTestId('runs-agent'));
+  await fireEvent.press(screen.getByTestId('runs-agent-all'));
+  await fireEvent.press(screen.getByTestId('runs-range'));
+  await fireEvent.press(screen.getByTestId('runs-range-1h'));
+  expect(screen.getByTestId('run-group-wardby/wardby-mobile#64')).toHaveTextContent(
+    /2 runs · \$0.71/,
+  );
+});
+
+test('issue headings without URLs are headers and live updates change chain state', async () => {
+  const issue = chainGraph.runs.find((r) => r.id === 'issue')!;
+  const trigger: Run['trigger'] = {
+    kind: 'issue',
+    provider: 'linear',
+    issueKey: 'MOB-7',
+    url: null,
+  };
+  state.graph = graphOf([
+    { ...issue, trigger },
+    { ...issue, id: 'issue-2', trigger, status: 'running', startedAt: minutes(2) },
+  ]);
+  await render(app());
+  const heading = screen.getByTestId('run-group-issue:MOB-7');
+  expect(heading).toHaveProp('accessibilityRole', 'header');
+  expect(heading).toHaveProp('accessibilityLabel', 'Issue MOB-7, Running, 2 runs, $0.24');
+  expect(heading.props.onPress).toBeUndefined();
+  await setLive({ graph: graphOf(state.graph!.runs.map((r) => ({ ...r, status: 'succeeded' }))) });
+  expect(screen.getByTestId('run-group-state-issue:MOB-7')).toHaveTextContent('Done');
+});
