@@ -47,9 +47,10 @@ export const flush = async () => {
   for (let i = 0; i < 10; i++) await Promise.resolve();
 };
 
-// A real step store, optionally filled from a recorded event stream's step frames.
+// A real step store that notifies right away, optionally filled from a
+// recorded event stream's step frames.
 export function fakeStepStore(stream?: string) {
-  const store = createStepStore();
+  const store = createStepStore({ flushMs: 0 });
   for (const frame of stream ? new SseParser().push(stream) : []) {
     if (frame.event !== 'step') continue;
     const parsed = stepFromEvent(JSON.parse(frame.data));
