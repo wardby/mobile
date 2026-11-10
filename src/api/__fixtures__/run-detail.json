@@ -56,5 +56,57 @@
         "envNames": []
       }
     ]
-  }
+  },
+  "steps": [
+    {
+      "seq": 13,
+      "at": "2026-10-01T10:01:00.000Z",
+      "kind": "tool",
+      "tool": "Read",
+      "summary": "src/live/stream.ts",
+      "status": "ok"
+    },
+    {
+      "seq": 14,
+      "at": "2026-10-01T10:01:30.000Z",
+      "kind": "said",
+      "tool": null,
+      "summary": "I'll run the tests next.",
+      "status": null
+    },
+    {
+      "seq": 15,
+      "at": "2026-10-01T10:02:00.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run lint",
+      "status": "exit 1"
+    },
+    {
+      "seq": 16,
+      "at": "2026-10-01T10:03:00.000Z",
+      "kind": "tool",
+      "tool": "Edit",
+      "summary": "app/runs/[id].tsx",
+      "status": "error"
+    },
+    {
+      "seq": 17,
+      "at": "2026-10-01T10:04:00.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "echo **bold** [link](https://example.test/x)",
+      "status": "ok"
+    },
+    {
+      "seq": 18,
+      "at": "2026-10-01T10:05:00.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm test",
+      "status": null
+    }
+  ],
+  "stepsOmitted": 12,
+  "stepsDropped": 0
 }

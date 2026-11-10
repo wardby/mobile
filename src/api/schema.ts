@@ -31,7 +31,7 @@ export interface paths {
     };
     /**
      * Run detail
-     * @description Full detail for one run, including final text.
+     * @description Full detail for one run, including final text and its newest steps.
      *
      *     Requires a bearer token with the `admin:view` scope, held by a caller with the admin role.
      */
@@ -80,6 +80,7 @@ export interface paths {
      *     - `retry: 3000`: suggested client reconnect delay in milliseconds.
      *     - `event: hello`: sent first. Data is `{"connected": <bool>}`, whether the server's live-event connection is up.
      *     - `event: run`, `event: service`, `event: outcome`: a run, coding-run service, or outcome changed. Each carries an `id:` line. Payloads match the `viewer-event` schema (see `x-event-schema`).
+     *     - `event: step`: a run recorded a step, or a step's status arrived. Carries an `id:` line. Data: the step's `seq`, `stepKind` (`tool` or `said`), `tool`, `summary` (redacted when it was recorded), `status` and `at`, never tool output.
      *     - `event: status`: the server's live-event connection changed. Data is `{"connected": <bool>}`.
      *     - `event: resync`: the live-event connection is up (again). Events may have been missed: refetch the graph.
      *     - `: ping`: comment sent every 15 seconds to keep the connection open.
@@ -356,6 +357,17 @@ export interface components {
       error: string | null;
       finalText: string | null;
       childRunIds: string[];
+      steps: {
+        seq: number;
+        at: string;
+        /** @enum {string} */
+        kind: 'tool' | 'said';
+        tool: string | null;
+        summary: string;
+        status: string | null;
+      }[];
+      stepsOmitted: number;
+      stepsDropped: number;
       coding: {
         provider: string;
         repository: string;
@@ -409,6 +421,18 @@ export interface components {
           runId: string;
           /** @enum {string} */
           source: 'pull_request' | 'host_status' | 'issue_status' | 'host_check';
+        }
+      | {
+          /** @constant */
+          kind: 'step';
+          runId: string;
+          seq: number;
+          /** @enum {string} */
+          stepKind: 'tool' | 'said';
+          tool: string | null;
+          summary: string;
+          status: string | null;
+          at: string;
         };
     'infra-info': {
       /** @enum {string} */

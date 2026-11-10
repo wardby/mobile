@@ -1,0 +1,60 @@
+{
+  "id": "run-coding",
+  "parentRunId": "run-parent",
+  "agentId": "builder",
+  "agentName": "Builder",
+  "agentKind": "coding",
+  "model": "planning-model",
+  "codingProvider": "claude",
+  "nativeExecutionMode": null,
+  "warmWorkerName": null,
+  "status": "running",
+  "trigger": {
+    "kind": "subagent"
+  },
+  "turns": 3,
+  "tokensIn": 1200,
+  "tokensOut": 400,
+  "costUsd": 0.12,
+  "budgetUsd": 5,
+  "startedAt": "2026-10-01T10:00:00.000Z",
+  "finishedAt": null,
+  "heartbeatAt": "2026-10-01T10:00:00.000Z",
+  "outcomes": [],
+  "declaredServices": [
+    {
+      "name": "postgres",
+      "version": "16"
+    }
+  ],
+  "services": [
+    {
+      "name": "postgres",
+      "state": "ready",
+      "attempts": 1,
+      "reason": null,
+      "readyAt": "2026-10-01T10:00:00.000Z",
+      "failedAt": null,
+      "createdAt": "2026-10-01T10:00:00.000Z"
+    }
+  ],
+  "error": null,
+  "finalText": null,
+  "childRunIds": ["run-child"],
+  "coding": {
+    "provider": "github",
+    "repository": "team/project",
+    "baseRef": "main",
+    "headRef": "fix-search",
+    "queuedAt": null,
+    "failureCategory": null,
+    "services": [
+      {
+        "name": "postgres",
+        "version": "16",
+        "image": "postgres:16",
+        "envNames": []
+      }
+    ]
+  }
+}
