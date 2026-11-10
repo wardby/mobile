@@ -29,6 +29,8 @@ export type LiveGraphState = {
   status: LiveStatus;
   lastUpdated: Date | null;
   resyncVersion?: number;
+  // Bumped after each graph load that follows a reconnect: events may be missed.
+  loadVersion?: number;
   range?: TimeRange;
 };
 export type LiveGraphOptions = {
@@ -73,6 +75,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
   let load = 0;
   let buffered: ViewerEvent[] | null = null;
   let refreshPending = false;
+  let missed = false;
 
   const update = (next: Partial<LiveGraphState>) => {
     state = { ...state, ...next };
@@ -87,6 +90,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
     load++;
     buffered = null;
     refreshPending = false;
+    steps.pause();
   }
   function connect() {
     disconnect();
@@ -120,6 +124,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
   function reconnect() {
     if (openedAt !== null && Date.now() - openedAt >= stableAfter) failures = 0;
     disconnect();
+    missed = true;
     if (failures >= maxRetries) {
       update({ status: 'offline' });
       return;
@@ -137,6 +142,8 @@ export function createLiveGraph(options: LiveGraphOptions) {
     }
     const current = ++load;
     buffered = [];
+    // Runs first seen during this load may be missing from its graph: keep them.
+    const held = steps.runIds();
     let graph: Graph;
     try {
       graph = await options.client.getGraph({ since: state.range ?? '24h', limit: 500 });
@@ -148,8 +155,14 @@ export function createLiveGraph(options: LiveGraphOptions) {
     if (current !== load) return;
     const events = buffered ?? [];
     buffered = null;
-    update({ graph, lastUpdated: new Date() });
-    steps.prune(graph.runs.map((run) => run.id));
+    if (missed) {
+      missed = false;
+      update({ graph, lastUpdated: new Date(), loadVersion: (state.loadVersion ?? 0) + 1 });
+    } else update({ graph, lastUpdated: new Date() });
+    steps.prune(
+      graph.runs.map((run) => run.id),
+      held,
+    );
     events.forEach(apply);
     if (refreshPending) {
       refreshPending = false;
@@ -245,12 +258,14 @@ export function createLiveGraph(options: LiveGraphOptions) {
     if (running) return;
     running = true;
     paused = false;
+    missed = false;
     failures = 0;
     update({ status: 'connecting' });
     appState = AppState.addEventListener('change', (next) => {
       if (!running) return;
       if (next === 'background' && !paused) {
         paused = true;
+        missed = true;
         disconnect();
       } else if (next === 'active' && paused) {
         paused = false;

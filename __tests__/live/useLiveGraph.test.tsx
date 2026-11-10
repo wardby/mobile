@@ -12,7 +12,8 @@ import {
   useLiveGraph,
   type LiveGraphOptions,
 } from '../../src/live/useLiveGraph';
-import { useStepStore, type StepStore } from '../../src/live/stepStore';
+import { createStepStore, useStepStore, type StepStore } from '../../src/live/stepStore';
+import stepBurst from '../fixtures/step-burst.json';
 import stepEvents from '../fixtures/step-events.json';
 import stepsOffEvents from '../fixtures/events-steps-off.json';
 import { baseUrl, fakeStepStore, fakeStream, flush, type FakeStream } from './fakes';
@@ -396,16 +397,63 @@ test('the back-off resets after a stable connection', async () => {
   expect(fetch).toHaveBeenCalledTimes(4);
 });
 test('background closes the stream and foreground reopens it and refetches', async () => {
-  await live();
+  const steps = createStepStore();
+  options.steps = steps;
+  const pause = jest.spyOn(steps, 'pause');
+  const listener = jest.fn();
+  steps.subscribeSteps('run-coding', listener);
+  const { result } = await live();
+  latest().push(stepEvents.stream);
+  await settle();
+  expect(listener).not.toHaveBeenCalled();
+  pause.mockClear();
   await act(async () => appState('background'));
   expect(signals[0].aborted).toBe(true);
   expect(streams[0].cancelled).toBe(true);
+  expect(pause).toHaveBeenCalledTimes(1);
+  expect(listener).toHaveBeenCalledTimes(1);
+  expect(steps.getSteps('run-coding').map((step) => step.seq)).toEqual([18, 19]);
   await advance(60000);
+  expect(listener).toHaveBeenCalledTimes(1);
   expect(fetch).toHaveBeenCalledTimes(1);
+  expect(result.current.loadVersion ?? 0).toBe(0);
   await act(async () => appState('active'));
   await settle();
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(log).toEqual(['stream', 'graph', 'stream', 'graph']);
+  expect(result.current.loadVersion).toBe(1);
+  expect(steps.getSteps('run-coding').map((step) => step.seq)).toEqual([18, 19]);
+});
+test('the first graph load leaves loadVersion unset', async () => {
+  const { result } = await live();
+  expect(options.client.getGraph).toHaveBeenCalledTimes(1);
+  expect(result.current.graph).not.toBeNull();
+  expect(result.current.loadVersion ?? 0).toBe(0);
+});
+test('a drop and reconnect bumps loadVersion once the graph reloads', async () => {
+  let finish: (value: Graph) => void = () => {};
+  const { result } = await live();
+  latest().end();
+  await settle();
+  expect(result.current.loadVersion ?? 0).toBe(0);
+  (options.client.getGraph as jest.Mock).mockImplementationOnce(
+    () => new Promise((resolve) => (finish = resolve)),
+  );
+  await advance(3000);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(result.current.loadVersion ?? 0).toBe(0);
+  finish(graph());
+  await settle();
+  expect(result.current.loadVersion).toBe(1);
+  await act(() => result.current.refresh());
+  expect(result.current.loadVersion).toBe(1);
+});
+test('setRange does not change loadVersion', async () => {
+  const { result } = await live();
+  await act(() => result.current.setRange('7d'));
+  await settle();
+  expect(options.client.getGraph).toHaveBeenLastCalledWith({ since: '7d', limit: 500 });
+  expect(result.current.loadVersion ?? 0).toBe(0);
 });
 test('unmount closes the stream', async () => {
   const { unmount } = await live();
@@ -579,6 +627,47 @@ describe('step events', () => {
     await settle();
     expect(seqs('run-gone')).toEqual([]);
     expect(seqs('run-coding')).toEqual([1]);
+  });
+  test('a graph load keeps steps for runs first seen while it was in flight', async () => {
+    await live();
+    latest().push(stepFrame('run-gone', 1));
+    await settle();
+    let finish: (value: Graph) => void = () => {};
+    (options.client.getGraph as jest.Mock).mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve)),
+    );
+    latest().push(frame('resync', {}));
+    await settle();
+    latest().push(stepFrame('run-new', 1));
+    latest().push(stepFrame('run-coding', 1));
+    await settle();
+    finish(graph());
+    await settle();
+    expect(seqs('run-new')).toEqual([1]);
+    expect(seqs('run-coding')).toEqual([1]);
+    expect(seqs('run-gone')).toEqual([]);
+    // The next load started after the run was seen, so it prunes as usual.
+    latest().push(frame('resync', {}));
+    await settle();
+    expect(options.client.getGraph).toHaveBeenCalledTimes(3);
+    expect(seqs('run-new')).toEqual([]);
+  });
+  test('a burst of step events notifies once per flush window', async () => {
+    steps = createStepStore();
+    options.steps = steps;
+    const coding = jest.fn();
+    const other = jest.fn();
+    steps.subscribeSteps('run-coding', coding);
+    steps.subscribeSteps('run-parent', other);
+    await live();
+    latest().push(stepBurst.stream);
+    await settle();
+    expect(coding).not.toHaveBeenCalled();
+    await advance(500);
+    expect(coding).toHaveBeenCalledTimes(1);
+    expect(other).not.toHaveBeenCalled();
+    expect(seqs('run-coding')).toHaveLength(100);
+    expect(seqs('run-coding')[99]).toBe(200);
   });
   test('sign-out clears all steps', async () => {
     const { rerender } = await live();
