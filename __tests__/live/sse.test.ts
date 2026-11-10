@@ -1,4 +1,5 @@
 import fixtures from '../fixtures/events.json';
+import stepFixtures from '../fixtures/step-events.json';
 import { SseParser, type SseFrame } from '../../src/live/sse';
 
 const expected: SseFrame[] = [
@@ -63,3 +64,18 @@ test('keeps the last id and passes unknown event names through', () => {
     { event: 'other', data: 'y', id: '7' },
   ]);
 });
+test.each(['\n', '\r\n'])(
+  'yields step frames with their id at every chunk boundary with %j line endings',
+  (ending) => {
+    const stream = stepFixtures.stream.replace(/\n/g, ending);
+    const steps = parse([stream]).frames.filter((frame) => frame.event === 'step');
+    expect(steps.map((frame) => frame.id)).toEqual(['51', '52', '53', '53']);
+    expect(JSON.parse(steps[0]!.data)).toMatchObject({
+      kind: 'step',
+      runId: 'run-coding',
+      seq: 18,
+    });
+    for (let i = 0; i <= stream.length; i++)
+      expect(parse([stream.slice(0, i), stream.slice(i)]).frames).toEqual(parse([stream]).frames);
+  },
+);
