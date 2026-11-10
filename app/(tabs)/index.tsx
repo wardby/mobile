@@ -338,7 +338,7 @@ export default function Runs() {
                 className="text-center p-4"
                 style={{ color: colors.muted }}
               >{`Showing the latest ${graph.limit} runs from the ${timeRange.window}.`}</Text>
-            ) : null
+            ) : undefined
           }
           refreshControl={
             <RefreshControl

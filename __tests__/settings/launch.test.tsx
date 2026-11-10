@@ -20,7 +20,8 @@ jest.mock('expo-router', () => {
     mockFirstScreen();
     return null;
   };
-  return { Stack };
+  const { DarkTheme, DefaultTheme, ThemeProvider } = jest.requireActual('expo-router');
+  return { Stack, DarkTheme, DefaultTheme, ThemeProvider };
 });
 test('launch stays blank until saved Light is applied before the first screen', async () => {
   let resolve!: (setting: string) => void;
