@@ -113,6 +113,14 @@ test('loads finished coding detail, all blocks, PR link and expandable plain res
   });
 });
 
+test('run detail content is inset below the translucent iOS header', async () => {
+  await setup();
+  expect(screen.getByTestId('run-detail')).toHaveProp(
+    'contentInsetAdjustmentBehavior',
+    'automatic',
+  );
+});
+
 test('live fields and timer update without fetching; outcomes and resync refetch', async () => {
   detail = { ...detail, status: 'running', finishedAt: null, outcomes: [] };
   live.graph!.runs = [detail];
