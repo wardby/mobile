@@ -1,0 +1,3 @@
+{
+  "stream": "retry: 3000\n\nevent: hello\ndata: {\"connected\":true}\n\n: ping\n\nid: 61\nevent: run\ndata: {\"kind\":\"run\",\"runId\":\"run-coding\",\"parentRunId\":\"run-parent\",\"agentId\":\"builder\",\"status\":\"running\",\"turns\":3,\"tokensIn\":2000,\"tokensOut\":300,\"costUsd\":0.2,\"finishedAt\":null}\n\nid: 62\nevent: outcome\ndata: {\"kind\":\"outcome\",\"runId\":\"run-coding\",\"source\":\"pull_request\"}\n\nevent: resync\ndata: {}\n\n"
+}

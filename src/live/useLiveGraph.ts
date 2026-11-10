@@ -14,6 +14,8 @@ import { createApiClient } from '../api/client';
 import type { components } from '../api/schema';
 import { session, useSession } from '../auth/session';
 import type { SseFrame } from './sse';
+import { createStepStore, StepStoreProvider, type StepStore } from './stepStore';
+import { stepFromEvent } from './steps';
 import { openEventStream, type StreamFetch } from './stream';
 
 type Graph = components['schemas']['graph-snapshot'];
@@ -39,6 +41,7 @@ export type LiveGraphOptions = {
   fetch?: StreamFetch;
   onUnauthorized?: () => void;
   random?: () => number;
+  steps?: StepStore;
 };
 
 const defaultRetry = 3000;
@@ -51,6 +54,7 @@ const jitter = 0.2;
 // apply events on top. Refetch on every resync and every reconnect.
 export function createLiveGraph(options: LiveGraphOptions) {
   const random = options.random ?? Math.random;
+  const steps = options.steps ?? createStepStore();
   let state: LiveGraphState = {
     graph: null,
     status: 'connecting',
@@ -145,6 +149,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
     const events = buffered ?? [];
     buffered = null;
     update({ graph, lastUpdated: new Date() });
+    steps.prune(graph.runs.map((run) => run.id));
     events.forEach(apply);
     if (refreshPending) {
       refreshPending = false;
@@ -161,6 +166,10 @@ export function createLiveGraph(options: LiveGraphOptions) {
     if (frame.event === 'hello' || frame.event === 'status') {
       const connected = (data as { connected?: unknown } | null)?.connected === true;
       update({ status: connected ? 'live' : 'reconnecting' });
+    } else if (frame.event === 'step') {
+      // Steps live in their own store: never touch the graph or load it.
+      const parsed = stepFromEvent(data);
+      if (parsed) steps.merge(parsed.runId, [parsed.step]);
     } else if (frame.event === 'resync') {
       update({ resyncVersion: (state.resyncVersion ?? 0) + 1 });
       void refresh();
@@ -272,12 +281,14 @@ export function createLiveGraph(options: LiveGraphOptions) {
     appState?.remove();
     appState = null;
     disconnect();
+    steps.clear();
   }
   return {
     start,
     setRange,
     close,
     refresh,
+    steps,
     getSnapshot: () => state,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
@@ -327,7 +338,11 @@ export function LiveGraphProvider({
     store.start();
     return store.close;
   }, [store]);
-  return createElement(LiveGraphContext.Provider, { value: store }, children);
+  return createElement(
+    LiveGraphContext.Provider,
+    { value: store },
+    createElement(StepStoreProvider, { store: store?.steps ?? null }, children),
+  );
 }
 
 export function useLiveGraph() {

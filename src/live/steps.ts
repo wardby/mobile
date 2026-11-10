@@ -20,13 +20,30 @@ export function stepFromEvent(data: unknown): { runId: string; step: Step } | nu
 
 // Upserts by seq, sorted by seq ascending. A known status is never replaced by
 // null (a late status survives an older copy); other fields come from incoming.
+// A step with the same values keeps its object, and when nothing changed the
+// existing array comes back, so duplicate frames create no new objects.
 export function mergeSteps(existing: Step[], incoming: Step[]): Step[] {
   const bySeq = new Map(existing.map((step) => [step.seq, step]));
   for (const step of incoming) {
     const known = bySeq.get(step.seq);
-    bySeq.set(step.seq, known ? { ...step, status: step.status ?? known.status } : step);
+    const next = known ? { ...step, status: step.status ?? known.status } : step;
+    if (!known || !sameStep(known, next)) bySeq.set(step.seq, next);
   }
-  return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+  const merged = [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+  const unchanged =
+    merged.length === existing.length && merged.every((step, index) => step === existing[index]);
+  return unchanged ? existing : merged;
+}
+
+function sameStep(a: Step, b: Step) {
+  return (
+    a.seq === b.seq &&
+    a.at === b.at &&
+    a.kind === b.kind &&
+    a.tool === b.tool &&
+    a.summary === b.summary &&
+    a.status === b.status
+  );
 }
 
 // Keeps the newest `max` steps by seq, oldest first.

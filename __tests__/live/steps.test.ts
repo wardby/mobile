@@ -134,3 +134,25 @@ test('capSteps leaves a short list unchanged', () => {
   expect(capSteps(steps, maxLiveSteps)).toEqual(steps);
   expect(capSteps(fetched(), maxLiveSteps)).toEqual(fetched());
 });
+test('a duplicate frame keeps the existing step objects and array', () => {
+  const merged = events().reduce<Step[]>((steps, event) => mergeSteps(steps, [event!.step]), []);
+  expect(mergeSteps(merged, [{ ...merged[1]! }])).toBe(merged);
+  expect(
+    mergeSteps(
+      merged,
+      merged.map((item) => ({ ...item })),
+    ),
+  ).toBe(merged);
+  expect(mergeSteps(merged, [])).toBe(merged);
+  // A fetched copy with a null status matches a step that already has one.
+  expect(mergeSteps(merged, [{ ...merged[0]!, status: null }])).toBe(merged);
+});
+test('a changed step keeps the unchanged step objects', () => {
+  const existing = [step(1), step(2, null), step(3)];
+  const merged = mergeSteps(existing, [{ ...step(1) }, step(2, 'ok'), step(4)]);
+  expect(merged).not.toBe(existing);
+  expect(merged).toEqual([step(1), step(2, 'ok'), step(3), step(4)]);
+  expect(merged[0]).toBe(existing[0]);
+  expect(merged[1]).not.toBe(existing[1]);
+  expect(merged[2]).toBe(existing[2]);
+});
