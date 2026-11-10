@@ -170,6 +170,26 @@ test('live fields and timer update without fetching; outcomes and resync refetch
 });
 
 test.each([
+  ['running', true],
+  ['pending', true],
+  ['succeeded', false],
+] as const)('a loadVersion change refetches a %s run: %p', async (status, refetches) => {
+  detail = {
+    ...detail,
+    status,
+    finishedAt: status === 'succeeded' ? detail.finishedAt : null,
+    outcomes: [],
+  };
+  live.graph!.runs = [detail];
+  live = { ...live, loadVersion: 0 };
+  const view = await setup();
+  expect(getRun).toHaveBeenCalledTimes(1);
+  live = { ...live, loadVersion: 1 };
+  await view.rerender(<RunDetail />);
+  expect(getRun).toHaveBeenCalledTimes(refetches ? 2 : 1);
+});
+
+test.each([
   [2.5, 'running', theme.light.progress.ok],
   [4.25, 'running', theme.light.progress.warn],
   [5, 'running', theme.light.progress.over],
