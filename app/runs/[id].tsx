@@ -117,6 +117,7 @@ function RunDetailContent({ id }: { id: string }) {
       {header}
       <ScrollView
         testID="run-detail"
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerClassName="p-6 gap-8"
         refreshControl={
           <RefreshControl
