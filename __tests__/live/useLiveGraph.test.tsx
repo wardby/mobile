@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { AppState, Text, type AppStateStatus } from 'react-native';
 import graphFixture from '../../src/api/__fixtures__/graph.json';
 import runFixture from '../../src/api/__fixtures__/run-detail.json';
+import preStepsRunFixture from '../../src/api/__fixtures__/run-detail-pre-0.9.json';
 import type { components } from '../../src/api/schema';
 import { useSession } from '../../src/auth/session';
 import {
@@ -256,6 +257,33 @@ test('an outcome event refetches that run and merges it', async () => {
   expect(merged.status).toBe('succeeded');
   expect(merged.outcomes).toEqual([outcome]);
   expect(merged).not.toHaveProperty('coding');
+});
+test('an outcome refetch keeps run detail steps out of the graph', async () => {
+  const { result } = await live();
+  latest().push(frame('outcome', { kind: 'outcome', runId: 'run-coding', source: 'pull_request' }));
+  await settle();
+  expect(options.client.getRun).toHaveBeenCalledWith('run-coding');
+  const merged = run('run-coding', result.current.graph!);
+  expect(Object.keys(merged).sort()).toEqual(Object.keys(run('run-coding', graph())).sort());
+  expect(merged).not.toHaveProperty('steps');
+  expect(merged).not.toHaveProperty('stepsOmitted');
+  expect(merged).not.toHaveProperty('stepsDropped');
+});
+test('an outcome refetch from a server before 0.9 merges as before', async () => {
+  const outcome = { kind: 'pull_request', provider: 'github', repository: 'team/project' };
+  (options.client.getRun as jest.Mock).mockResolvedValueOnce({
+    ...structuredClone(preStepsRunFixture),
+    status: 'succeeded',
+    outcomes: [outcome],
+  });
+  const { result } = await live();
+  latest().push(frame('outcome', { kind: 'outcome', runId: 'run-coding', source: 'pull_request' }));
+  await settle();
+  const merged = run('run-coding', result.current.graph!);
+  expect(merged.status).toBe('succeeded');
+  expect(merged.outcomes).toEqual([outcome]);
+  expect(merged).not.toHaveProperty('coding');
+  expect(merged).not.toHaveProperty('steps');
 });
 test('resync refetches and replaces the graph', async () => {
   const { result } = await live();
