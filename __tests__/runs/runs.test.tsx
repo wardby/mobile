@@ -359,6 +359,12 @@ test('shows a muted footer when the graph is truncated', async () => {
     'Showing the latest 500 runs from the last 24 hours.',
   );
 });
+test('shows no footer when the graph is complete', async () => {
+  state.graph = { ...graphOf([run('one')]), truncated: false };
+  await render(app());
+  expect(screen.getByTestId('run-row-one')).toBeTruthy();
+  expect(screen.queryByTestId('runs-limit')).toBeNull();
+});
 
 test('expires a run between minute ticks at its exact window boundary', async () => {
   state.graph = graphOf([

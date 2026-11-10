@@ -25,7 +25,7 @@ export default function TabsLayout() {
             <Ionicons
               name={focused ? icon : `${icon}-outline`}
               size={size}
-              color={color}
+              style={{ color }}
               accessible={false}
               testID={`tab-${tab}-icon`}
             />

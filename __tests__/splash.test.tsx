@@ -22,7 +22,8 @@ jest.mock('expo-router', () => {
   Stack.Screen = function Screen() {
     return null;
   };
-  return { Stack };
+  const { DarkTheme, DefaultTheme, ThemeProvider } = jest.requireActual('expo-router');
+  return { Stack, DarkTheme, DefaultTheme, ThemeProvider };
 });
 
 let ready: boolean;
