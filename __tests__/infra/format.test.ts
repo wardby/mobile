@@ -5,8 +5,10 @@ import type { components } from '../../src/api/schema';
 import {
   CODING_NOT_CONFIGURED_TEXT,
   codingKubernetesRows,
+  codingLabelGroups,
   formatLabels,
   isCodingLauncherConfigured,
+  labelEntryCount,
   launcherLabel,
   nativeKubernetesRows,
   warmPoolLabel,
@@ -66,7 +68,7 @@ test('the coding not-configured text is the agreed wording', () => {
   );
 });
 
-test('codingKubernetesRows shows every coding Kubernetes field once', () => {
+test('codingKubernetesRows shows every coding Kubernetes field except the label maps', () => {
   expect(codingKubernetesRows(coding)).toEqual([
     { label: 'Namespace', value: 'example-namespace' },
     { label: 'Platform', value: 'example-platform' },
@@ -74,14 +76,42 @@ test('codingKubernetesRows shows every coding Kubernetes field once', () => {
     { label: 'Proxy service', value: 'example-proxy' },
     { label: 'Run label', value: 'example.test/run' },
     { label: 'Run label hash', value: '12 characters' },
-    { label: 'Component labels', value: 'example.test/component=coding' },
-    { label: 'Managed-by labels', value: 'example.test/managed-by=wardby' },
   ]);
 });
 
-test('codingKubernetesRows reads exactly the schema fields, each once', () => {
+test('codingLabelGroups holds both coding label maps', () => {
+  expect(codingLabelGroups(coding)).toEqual([
+    { label: 'Component labels', entries: ['example.test/component=coding'] },
+    { label: 'Managed-by labels', entries: ['example.test/managed-by=wardby'] },
+  ]);
+});
+
+test('codingLabelGroups sorts entries and gives an empty map no entries', () => {
+  expect(
+    codingLabelGroups({
+      ...coding,
+      componentLabel: { 'example.test/b': 'two', 'example.test/a': 'one' },
+      managedByLabel: {},
+    }),
+  ).toEqual([
+    { label: 'Component labels', entries: ['example.test/a=one', 'example.test/b=two'] },
+    { label: 'Managed-by labels', entries: [] },
+  ]);
+});
+
+test('labelEntryCount totals the entries of every group', () => {
+  expect(labelEntryCount(codingLabelGroups(coding))).toBe(
+    Object.keys(coding.componentLabel).length + Object.keys(coding.managedByLabel).length,
+  );
+  expect(
+    labelEntryCount(codingLabelGroups({ ...coding, componentLabel: {}, managedByLabel: {} })),
+  ).toBe(0);
+});
+
+test('coding rows and label groups read exactly the schema fields, each once', () => {
   const { proxy, reads } = tracked(coding);
   codingKubernetesRows(proxy);
+  codingLabelGroups(proxy);
   const fields: (keyof CodingK8s)[] = [
     'namespace',
     'platform',
@@ -121,12 +151,7 @@ test('nativeKubernetesRows reads exactly the schema fields, each once', () => {
 });
 
 test('a null runtime class and empty label maps read as words, not blanks', () => {
-  const codingRows = codingKubernetesRows({
-    ...coding,
-    runtimeClass: null,
-    componentLabel: {},
-    managedByLabel: {},
-  });
+  const codingRows = codingKubernetesRows({ ...coding, runtimeClass: null });
   const nativeRows = nativeKubernetesRows({
     ...native,
     runtimeClass: null,
@@ -136,8 +161,6 @@ test('a null runtime class and empty label maps read as words, not blanks', () =
   const value = (rows: { label: string; value: string }[], label: string) =>
     rows.find((row) => row.label === label)?.value;
   expect(value(codingRows, 'Runtime class')).toBe('Default');
-  expect(value(codingRows, 'Component labels')).toBe('None');
-  expect(value(codingRows, 'Managed-by labels')).toBe('None');
   expect(value(nativeRows, 'Runtime class')).toBe('Default');
   expect(value(nativeRows, 'Component labels')).toBe('None');
   expect(value(nativeRows, 'Warm pool labels')).toBe('None');

@@ -75,6 +75,7 @@ export default function TabsLayout() {
           tabBarButtonTestID: 'tab-spend',
         }}
       />
+      <Tabs.Screen name="infra" options={{ href: null, headerTitle: 'Infrastructure' }} />
       <Tabs.Screen
         name="settings"
         options={{
