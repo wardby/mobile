@@ -32,6 +32,11 @@ const codingEntries = [
   ...Object.entries(coding.componentLabel),
   ...Object.entries(coding.managedByLabel),
 ].map(([key, value]) => `${key}=${value}`);
+const native = kubernetes.native!.kubernetes!;
+const nativeEntries = [
+  ...Object.entries(native.componentLabel),
+  ...Object.entries(native.warmPoolLabel),
+].map(([key, value]) => `${key}=${value}`);
 
 type Reply = { status: number; body: unknown };
 let replies: Reply[];
@@ -205,6 +210,128 @@ test('a refetch with a new response collapses the coding labels again', async ()
   await act(async () => mockFocus());
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
   expect(screen.queryByText(codingEntries[0])).toBeNull();
+});
+
+test('Docker native agents show the launcher and warm pool, without Kubernetes', async () => {
+  await render(<Infrastructure />);
+  const section = await screen.findByTestId('infra-native');
+  expect(within(section).getByText('NATIVE AGENTS')).toHaveProp('accessibilityRole', 'header');
+  expect(screen.getByTestId('infra-native-launcher')).toHaveTextContent('Docker');
+  expect(screen.getByTestId('infra-native-warm-pool')).toHaveTextContent('2 workers');
+  expect(within(section).getByText('Warm pool')).toBeTruthy();
+  expect(screen.queryByTestId('infra-native-kubernetes')).toBeNull();
+  expect(screen.queryByTestId('infra-native-labels-toggle')).toBeNull();
+  expect(screen.queryByTestId('infra-native-not-configured')).toBeNull();
+});
+
+test('the native section sits below the coding launcher section', async () => {
+  await render(<Infrastructure />);
+  await screen.findByTestId('infra-native');
+  const headers = screen.getAllByRole('header').map((node) => node.props.children);
+  expect(headers).toEqual(['CODING LAUNCHER', 'NATIVE AGENTS']);
+});
+
+test('Kubernetes native agents show every native Kubernetes row in order', async () => {
+  reply(ok(kubernetes));
+  await render(<Infrastructure />);
+  expect(await screen.findByTestId('infra-native-launcher')).toHaveTextContent('Kubernetes');
+  expect(screen.getByTestId('infra-native-warm-pool')).toHaveTextContent('3 workers');
+  const block = screen.getByTestId('infra-native-kubernetes');
+  const rows: [string, string][] = [
+    ['Namespace', native.namespace],
+    ['Runtime class', 'Default'],
+    ['Run label', native.runLabel],
+    ['Warm worker', native.warmWorkerLabel],
+  ];
+  for (const [label, value] of rows) {
+    expect(within(block).getByText(label)).toBeTruthy();
+    expect(within(block).getByText(value)).toBeTruthy();
+  }
+  const text = within(block)
+    .getAllByText(/./)
+    .map((node) => node.props.children)
+    .filter((child) => typeof child === 'string');
+  expect(text.indexOf('Namespace')).toBeLessThan(text.indexOf('Runtime class'));
+  expect(text.indexOf('Runtime class')).toBeLessThan(text.indexOf('Run label'));
+  expect(text.indexOf('Run label')).toBeLessThan(text.indexOf('Warm worker'));
+  expect(screen.queryByTestId('infra-native-not-configured')).toBeNull();
+});
+
+test('native labels are collapsed by default', async () => {
+  reply(ok(kubernetes));
+  await render(<Infrastructure />);
+  const toggle = await screen.findByTestId('infra-native-labels-toggle');
+  expect(toggle).toHaveTextContent(`Show labels (${nativeEntries.length})`, { exact: false });
+  expect(toggle).toHaveProp('accessibilityLabel', `Show labels (${nativeEntries.length})`);
+  expect(toggle).toHaveProp('accessibilityState', expect.objectContaining({ expanded: false }));
+  for (const entry of nativeEntries) expect(screen.queryByText(entry)).toBeNull();
+  expect(screen.queryByText('Component labels')).toBeNull();
+  expect(screen.queryByText('Warm pool labels')).toBeNull();
+});
+
+test('the native labels toggle shows every entry, then hides them, independently of coding', async () => {
+  reply(ok(kubernetes));
+  await render(<Infrastructure />);
+  await fireEvent.press(await screen.findByTestId('infra-native-labels-toggle'));
+  let toggle = screen.getByTestId('infra-native-labels-toggle');
+  expect(toggle).toHaveTextContent('Hide labels', { exact: false });
+  expect(toggle).toHaveProp('accessibilityLabel', 'Hide labels');
+  expect(toggle).toHaveProp('accessibilityState', expect.objectContaining({ expanded: true }));
+  const block = screen.getByTestId('infra-native-kubernetes');
+  expect(within(block).getByText('Component labels')).toBeTruthy();
+  expect(within(block).getByText('Warm pool labels')).toBeTruthy();
+  for (const entry of nativeEntries) expect(within(block).getByText(entry)).toBeTruthy();
+  const coding = screen.getByTestId('infra-coding-labels-toggle');
+  expect(coding).toHaveTextContent(`Show labels (${codingEntries.length})`, { exact: false });
+  expect(coding).toHaveProp('accessibilityState', expect.objectContaining({ expanded: false }));
+  for (const entry of codingEntries) expect(screen.queryByText(entry)).toBeNull();
+  await fireEvent.press(toggle);
+  toggle = screen.getByTestId('infra-native-labels-toggle');
+  expect(toggle).toHaveTextContent(`Show labels (${nativeEntries.length})`, { exact: false });
+  expect(toggle).toHaveProp('accessibilityState', expect.objectContaining({ expanded: false }));
+  for (const entry of nativeEntries) expect(screen.queryByText(entry)).toBeNull();
+});
+
+test('expanding the coding labels leaves the native labels collapsed', async () => {
+  reply(ok(kubernetes));
+  await render(<Infrastructure />);
+  await fireEvent.press(await screen.findByTestId('infra-coding-labels-toggle'));
+  expect(screen.getByTestId('infra-native-labels-toggle')).toHaveProp(
+    'accessibilityState',
+    expect.objectContaining({ expanded: false }),
+  );
+  for (const entry of nativeEntries) expect(screen.queryByText(entry)).toBeNull();
+});
+
+test('a refetch with a new response collapses both label blocks again', async () => {
+  reply(ok(kubernetes));
+  await render(<Infrastructure />);
+  await fireEvent.press(await screen.findByTestId('infra-coding-labels-toggle'));
+  await fireEvent.press(screen.getByTestId('infra-native-labels-toggle'));
+  expect(screen.getByText(codingEntries[0])).toBeTruthy();
+  expect(screen.getByText(nativeEntries[0])).toBeTruthy();
+  await refresh();
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  for (const id of ['infra-coding-labels-toggle', 'infra-native-labels-toggle'])
+    expect(screen.getByTestId(id)).toHaveProp(
+      'accessibilityState',
+      expect.objectContaining({ expanded: false }),
+    );
+  for (const entry of [...codingEntries, ...nativeEntries])
+    expect(screen.queryByText(entry)).toBeNull();
+});
+
+test('native agents not configured: muted text and no launcher or warm-pool rows', async () => {
+  reply(ok(unconfigured));
+  await render(<Infrastructure />);
+  const section = await screen.findByTestId('infra-native');
+  expect(within(section).getByText('NATIVE AGENTS')).toBeTruthy();
+  expect(screen.getByTestId('infra-native-not-configured')).toHaveTextContent(
+    "Native agents aren't configured on this server.",
+  );
+  expect(screen.queryByTestId('infra-native-launcher')).toBeNull();
+  expect(screen.queryByTestId('infra-native-warm-pool')).toBeNull();
+  expect(screen.queryByTestId('infra-native-kubernetes')).toBeNull();
 });
 
 test('pull-to-refresh refetches, and refreshing follows loading', async () => {
