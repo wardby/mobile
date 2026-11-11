@@ -10,6 +10,7 @@ import Connect from '../../app/connect';
 import TabsLayout from '../../app/(tabs)/_layout';
 import Runs from '../../app/(tabs)/index';
 import Spend from '../../app/(tabs)/spend';
+import Infra from '../../app/(tabs)/infra';
 import Settings from '../../app/(tabs)/settings';
 import RunDetail from '../../app/runs/[id]';
 import mockDetailFixture from '../../src/api/__fixtures__/run-detail.json';
@@ -38,7 +39,10 @@ jest.mock('../../src/api/client', () => ({
 jest.mock('../../src/auth/session', () => ({
   useSession: jest.fn(),
   session: {
-    apiClient: () => ({ getRun: async (id: string) => ({ ...mockDetailFixture, id }) }),
+    apiClient: () => ({
+      getRun: async (id: string) => ({ ...mockDetailFixture, id }),
+      getInfra: async () => jest.requireActual('../../src/api/__fixtures__/infra.json'),
+    }),
     getAccessToken: jest.fn(),
     signOut: jest.fn(),
   },
@@ -70,6 +74,7 @@ const context = getMockContext({
   '(tabs)/_layout': TabsLayout,
   '(tabs)/index': Runs,
   '(tabs)/spend': Spend,
+  '(tabs)/infra': Infra,
   '(tabs)/settings': Settings,
   'runs/[id]': RunDetail,
 });
@@ -227,6 +232,8 @@ test('the selected filter survives a tab switch', async () => {
   await filtered('failed', ['broken']);
   await fireEvent.press(screen.getByTestId('tab-spend'));
   expect(screen.getByTestId('spend-period-week')).toBeTruthy();
+  await fireEvent.press(screen.getByTestId('tab-infra'));
+  expect(await screen.findByTestId('infra-coding-launcher')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('tab-runs'));
   await fireEvent.press(screen.getByTestId('runs-filter'));
   expect(screen.getByTestId('runs-filter-failed')).toHaveProp(

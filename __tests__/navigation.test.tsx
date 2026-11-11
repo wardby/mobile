@@ -8,6 +8,7 @@ import Connect from '../app/connect';
 import TabsLayout from '../app/(tabs)/_layout';
 import Runs from '../app/(tabs)/index';
 import Spend from '../app/(tabs)/spend';
+import Infra from '../app/(tabs)/infra';
 import Settings from '../app/(tabs)/settings';
 import { useSession } from '../src/auth/session';
 import { openEventStream } from '../src/live/stream';
@@ -27,7 +28,13 @@ jest.mock('@expo/vector-icons/Ionicons', () => {
 });
 jest.mock('../src/auth/session', () => ({
   useSession: jest.fn(),
-  session: { getAccessToken: jest.fn(), signOut: jest.fn() },
+  session: {
+    apiClient: () => ({
+      getInfra: async () => jest.requireActual('../src/api/__fixtures__/infra.json'),
+    }),
+    getAccessToken: jest.fn(),
+    signOut: jest.fn(),
+  },
 }));
 jest.mock('../src/live/stream', () => ({ openEventStream: jest.fn() }));
 jest.mock('expo-constants', () => ({
@@ -40,6 +47,7 @@ const context = getMockContext({
   '(tabs)/_layout': TabsLayout,
   '(tabs)/index': Runs,
   '(tabs)/spend': Spend,
+  '(tabs)/infra': Infra,
   '(tabs)/settings': Settings,
 });
 let auth: ReturnType<typeof useSession>;
@@ -92,15 +100,20 @@ test.each(['light', 'dark'] as const)(
   async (mode) => {
     jest.spyOn(ReactNative, 'useColorScheme').mockReturnValue(mode);
     await render(app());
-    for (const name of ['Runs', 'Spend', 'Settings']) {
+    const labels: Record<string, string> = { Infra: 'Infrastructure' };
+    for (const name of ['Runs', 'Spend', 'Infra', 'Settings']) {
       expect(screen.getByTestId(`tab-${name.toLowerCase()}`)).toHaveProp(
         'accessibilityLabel',
-        name,
+        labels[name] ?? name,
       );
     }
+    expect(screen.getByTestId('tab-infra-label')).toHaveTextContent('Infra', { exact: true });
     expect(screen.getByTestId('runs-loading')).toHaveTextContent('Loading runs…');
     await fireEvent.press(screen.getByTestId('tab-spend'));
     expect(screen.getByTestId('spend-period-week')).toHaveTextContent('This week');
+    await fireEvent.press(screen.getByTestId('tab-infra'));
+    expect(await screen.findByTestId('infra-coding-launcher')).toHaveTextContent('Docker');
+    expect(screen.getAllByText('Infrastructure').length).toBeGreaterThan(0);
     await fireEvent.press(screen.getByTestId('tab-settings'));
     expect(screen.getByTestId('settings-host')).toHaveTextContent('server.example');
     expect(screen.getByTestId('settings-version')).toHaveTextContent('1.0.0');
@@ -155,7 +168,7 @@ test.each(['light', 'dark'] as const)(
       fontScale: 2,
     });
     await render(app());
-    for (const name of ['runs', 'spend', 'settings']) {
+    for (const name of ['runs', 'spend', 'infra', 'settings']) {
       let item = screen.getByTestId(`tab-${name}`).parent;
       while (item && ReactNative.StyleSheet.flatten(item.props.style)?.minHeight !== 44) {
         item = item.parent;
@@ -174,6 +187,46 @@ test.each(['light', 'dark'] as const)(
     expect(screen.getByTestId('tab-runs-label')).toHaveStyle({ fontWeight: '400' });
     expect(screen.getByTestId('tab-spend-label')).toHaveStyle({ fontWeight: '700' });
     expect(screen.getAllByTestId('tab-spend-icon')[0]).toHaveTextContent('pie-chart');
+    // Both icon variants render; the visible one sits in the wrapper with opacity 1.
+    const infraIcon = () =>
+      screen
+        .getAllByTestId('tab-infra-icon')
+        .find((icon) => ReactNative.StyleSheet.flatten(icon.parent?.props.style)?.opacity === 1);
+    expect(infraIcon()).toHaveTextContent('server-outline', { exact: true });
+    expect(screen.getByTestId('tab-infra-label')).toHaveStyle({ fontWeight: '400' });
+    await fireEvent.press(screen.getByTestId('tab-infra'));
+    expect(infraIcon()).toHaveTextContent('server', { exact: true });
+    expect(screen.getByTestId('tab-infra-label')).toHaveStyle({ fontWeight: '700' });
     jest.restoreAllMocks();
   },
 );
+
+test('four tabs fit a 320 pt wide phone at fontScale 2', async () => {
+  jest.spyOn(ReactNative, 'useWindowDimensions').mockReturnValue({
+    width: 320,
+    height: 568,
+    scale: 2,
+    fontScale: 2,
+  });
+  await render(app());
+  const tabs = ['runs', 'spend', 'infra', 'settings'];
+  const order = screen
+    .getAllByTestId(/^tab-(runs|spend|infra|settings)$/)
+    .map((tab) => tab.props.testID);
+  expect(order).toEqual(['tab-runs', 'tab-spend', 'tab-infra', 'tab-settings']);
+  expect(screen.getByTestId('tab-infra-label')).toHaveTextContent('Infra', { exact: true });
+  for (const name of tabs) {
+    const label = screen.getByTestId(`tab-${name}-label`);
+    expect(label).toHaveProp('allowFontScaling', true);
+    expect(label).toHaveStyle({ fontSize: 14 });
+    expect(label.props.numberOfLines).toBeUndefined();
+    let item = screen.getByTestId(`tab-${name}`).parent;
+    while (item && ReactNative.StyleSheet.flatten(item.props.style)?.minHeight !== 44) {
+      item = item.parent;
+    }
+    expect(ReactNative.StyleSheet.flatten(item?.props.style)).toEqual(
+      expect.objectContaining({ minWidth: 44, minHeight: 44 }),
+    );
+  }
+  jest.restoreAllMocks();
+});
