@@ -16,7 +16,7 @@ import { asChains, eventLabel, prRefOf, type Run } from '../../src/runs/prChains
 import { ChainHeading } from '../../src/runs/ChainHeading';
 import { statusStyle } from '../../src/runs/status';
 import { useThemeMode } from '../../components/ui/provider';
-import { RunRow } from '../../src/runs/RunRow';
+import { LatestStepRunRow } from '../../src/runs/RunRow';
 import type { RunStatus } from '../../src/runs/status';
 
 type Filter = 'all' | 'running' | 'failed';
@@ -282,7 +282,7 @@ export default function Runs() {
           }
           renderItem={({ item }) => {
             const row = (run: Run, grouped = false) => (
-              <RunRow
+              <LatestStepRunRow
                 key={run.id}
                 run={run}
                 subRuns={subRuns.get(run.id) ?? 0}
