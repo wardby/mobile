@@ -17,6 +17,13 @@ import graphFixture from '../../src/api/__fixtures__/graph.json';
 import type { components } from '../../src/api/schema';
 import { useSession } from '../../src/auth/session';
 import { useLiveGraph, type LiveGraphState } from '../../src/live/useLiveGraph';
+import { SseParser } from '../../src/live/sse';
+import { createStepStore, StepStoreProvider, type StepStore } from '../../src/live/stepStore';
+import { stepFromEvent, type Step } from '../../src/live/steps';
+import stepEvents from '../fixtures/step-events.json';
+import stepBurst from '../fixtures/step-burst.json';
+import stepsOff from '../fixtures/events-steps-off.json';
+import { fakeStepStore } from '../live/fakes';
 import { statusStyle } from '../../src/runs/status';
 
 type Graph = components['schemas']['graph-snapshot'];
@@ -40,6 +47,18 @@ jest.mock('../../src/live/useLiveGraph', () => ({
   useLiveGraph: jest.fn(),
   LiveGraphProvider: ({ children }: { children: ReactNode }) => children,
 }));
+// Counts row renders: RunRow formats its start time once per render.
+const mockRowRenders: string[] = [];
+jest.mock('../../src/runs/format', () => {
+  const actual = jest.requireActual('../../src/runs/format');
+  return {
+    ...actual,
+    relativeTime: (iso: string, now: number) => {
+      mockRowRenders.push(iso);
+      return actual.relativeTime(iso, now);
+    },
+  };
+});
 jest.mock('expo-constants', () => ({
   __esModule: true,
   default: { expoConfig: { version: '1.0.0' } },
@@ -54,7 +73,10 @@ const context = getMockContext({
   '(tabs)/settings': Settings,
   'runs/[id]': RunDetail,
 });
-const app = () => <ExpoRoot context={context} location={new URL('http://localhost/')} />;
+const app = (steps?: StepStore) => {
+  const root = <ExpoRoot context={context} location={new URL('http://localhost/')} />;
+  return steps ? <StepStoreProvider store={steps}>{root}</StepStoreProvider> : root;
+};
 
 const now = Date.parse('2026-10-01T12:00:00.000Z');
 const minutes = (n: number) => new Date(now - n * 60000).toISOString();
@@ -624,4 +646,126 @@ test('issue headings without URLs are headers and live updates change chain stat
   expect(heading.props.onPress).toBeUndefined();
   await setLive({ graph: graphOf(state.graph!.runs.map((r) => ({ ...r, status: 'succeeded' }))) });
   expect(screen.getByTestId('run-group-state-issue:MOB-7')).toHaveTextContent('Done');
+});
+
+// The step frames of a recorded stream, as [runId, steps] pairs for store.merge.
+const stepFrames = (stream: string, runId?: string) =>
+  new SseParser()
+    .push(stream)
+    .filter((frame) => frame.event === 'step')
+    .map((frame) => stepFromEvent(JSON.parse(frame.data))!)
+    .map((parsed): [string, Step[]] => [runId ?? parsed.runId, [parsed.step]]);
+const [pending, succeeded, said] = stepFrames(stepEvents.stream);
+const rowLabels = () =>
+  screen.queryAllByTestId(/^run-row-/).map((row) => row.props.accessibilityLabel);
+
+test('a running run shows its latest step in place of started and cost', async () => {
+  const steps = fakeStepStore();
+  steps.merge(...pending);
+  steps.merge(...succeeded);
+  steps.merge(...stepFrames(stepEvents.stream, 'done')[1]);
+  state.graph = graphOf([
+    run('run-coding'),
+    run('idle', { startedAt: minutes(10) }),
+    run('done', { status: 'succeeded', startedAt: minutes(20) }),
+  ]);
+  await render(app(steps));
+  const row = screen.getByTestId('run-row-run-coding');
+  expect(row).toHaveTextContent('run-codingRunning✓ Bash: npm test›');
+  expect(row).toHaveProp(
+    'accessibilityLabel',
+    'run-coding, Running, started 5m ago, cost $0.12, now: Bash: npm test, succeeded',
+  );
+  expect(row.props.className).toContain('h-16');
+  expect(screen.getByTestId('run-latest-step-run-coding')).toHaveProp('numberOfLines', 1);
+  expect(screen.getByTestId('run-row-idle')).toHaveTextContent('idleRunning10m ago · $0.12 of $5›');
+  expect(screen.getByTestId('run-row-done')).toHaveTextContent(
+    'doneSucceeded20m ago · $0.12 of $5›',
+  );
+  expect(screen.getByTestId('run-row-done')).toHaveProp(
+    'accessibilityLabel',
+    'done, Succeeded, started 20m ago, cost $0.12',
+  );
+
+  await act(async () => steps.merge(...said));
+  expect(row).toHaveTextContent('run-codingRunning"Tests pass; opening the pull request."›');
+  expect(row.props.accessibilityLabel).toBe(
+    'run-coding, Running, started 5m ago, cost $0.12, now: Agent said: Tests pass; opening the pull request.',
+  );
+  expect(row.props.accessibilityLabel).not.toMatch(/[✓✕…┃]/);
+
+  await setLive({ graph: graphOf([run('run-coding', { status: 'succeeded' })]) });
+  expect(screen.getByTestId('run-row-run-coding')).toHaveTextContent(
+    'run-codingSucceeded5m ago · $0.12 of $5›',
+  );
+  expect(screen.getByTestId('run-row-run-coding')).toHaveProp(
+    'accessibilityLabel',
+    'run-coding, Succeeded, started 5m ago, cost $0.12',
+  );
+  expect(screen.queryByTestId('run-latest-step-run-coding')).toBeNull();
+});
+
+test('a long step stays on one truncated line and the row keeps 64 pt', async () => {
+  const steps = fakeStepStore();
+  const [runId, [step]] = succeeded;
+  steps.merge(runId, [{ ...step, summary: 'npm test -- --watch=false '.repeat(20) }]);
+  state.graph = graphOf([run('run-coding')]);
+  await render(app(steps));
+  expect(screen.getByTestId('run-row-run-coding').props.className).toContain('h-16');
+  const line = screen.getByTestId('run-latest-step-run-coding');
+  expect(line).toHaveProp('numberOfLines', 1);
+  expect(line).toHaveProp('ellipsizeMode', 'tail');
+});
+
+test('rows inside PR chain groups show their latest step too', async () => {
+  loadChains();
+  const steps = fakeStepStore();
+  steps.merge(...stepFrames(stepEvents.stream, 'follow-up')[1]);
+  await render(app(steps));
+  expect(screen.getByTestId('run-group-wardby/wardby-mobile#64')).toHaveProp(
+    'accessibilityLabel',
+    'Pull request wardby-mobile#64, Running, 3 runs, $1.84, opens in browser',
+  );
+  const row = screen.getByTestId('run-row-follow-up');
+  expect(row).toHaveTextContent(/✓ Bash: npm test›$/);
+  expect(row.props.accessibilityLabel).toMatch(/, follow-up, now: Bash: npm test, succeeded$/);
+  expect(screen.getByTestId('run-row-review')).toHaveTextContent(/· review/);
+});
+
+test('a burst of step events re-renders only that row, once per flush window', async () => {
+  const steps = createStepStore({ flushMs: 500 });
+  state.graph = graphOf([run('run-coding'), run('other', { startedAt: minutes(10) })]);
+  await render(app(steps));
+  const coding = state.graph.runs[0].startedAt;
+  const other = state.graph.runs[1].startedAt;
+  mockRowRenders.length = 0;
+  await act(async () => {
+    for (const frame of stepFrames(stepBurst.stream)) steps.merge(...frame);
+  });
+  expect(mockRowRenders).toEqual([]);
+  await act(async () => {
+    jest.advanceTimersByTime(500);
+  });
+  expect(mockRowRenders.filter((iso) => iso === coding)).toHaveLength(1);
+  expect(mockRowRenders.filter((iso) => iso === other)).toHaveLength(0);
+  expect(screen.getByTestId('run-row-run-coding')).toHaveTextContent(
+    /✓ Bash: npm test -- step 200›$/,
+  );
+});
+
+test.each([
+  ['no step store', () => undefined],
+  ['an empty step store', () => fakeStepStore()],
+  ['a steps-off stream', () => fakeStepStore(stepsOff.stream)],
+])('with %s every row is exactly as without steps', async (_, steps) => {
+  state.graph = graphOf(graphFixture.runs.map((r) => ({ ...(r as Run), parentRunId: null })));
+  await render(app(steps()));
+  expect(rowLabels()).toEqual([
+    'Planner, Running, started 2h ago, cost $0.12',
+    'Builder, Running, started 2h ago, cost $0.12',
+    'Planner, Succeeded, started 2h ago, cost $0.12',
+  ]);
+  expect(screen.queryAllByTestId(/^run-latest-step-/)).toEqual([]);
+  for (const row of screen.queryAllByTestId(/^run-row-/))
+    expect(row).toHaveTextContent(/^(Planner|Builder)(Running|Succeeded)2h ago · \$0.12 of \$5›$/);
 });
