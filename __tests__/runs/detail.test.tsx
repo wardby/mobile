@@ -9,6 +9,8 @@ import stepsOff from '../../src/api/__fixtures__/run-detail-steps-off.json';
 import pre09 from '../../src/api/__fixtures__/run-detail-pre-0.9.json';
 import dropped from '../../src/api/__fixtures__/run-detail-dropped.json';
 import many from '../../src/api/__fixtures__/run-detail-many.json';
+import requestTruncated from '../../src/api/__fixtures__/run-detail-request-truncated.json';
+import requestNull from '../../src/api/__fixtures__/run-detail-request-null.json';
 import events from '../fixtures/step-events.json';
 import { fakeStepStore } from '../live/fakes';
 import { StepStoreProvider, type StepStore } from '../../src/live/stepStore';
@@ -859,5 +861,123 @@ describe('at fontScale 2 and 320 pt', () => {
     const loading = screen.getByTestId('run-detail-steps-loading');
     expect(loading).toHaveProp('accessibilityLabel', 'Loading steps');
     for (const label of stepLabels()) expect(label).not.toMatch(symbols);
+  });
+});
+
+describe('REQUEST', () => {
+  const text = () => screen.getByTestId('run-detail-request-text');
+  // The unconstrained copy reports how many lines the full text takes.
+  const measure = async (lines: number) =>
+    fireEvent(
+      screen.getByTestId('run-detail-request-measure', { includeHiddenElements: true }),
+      'textLayout',
+      {
+        nativeEvent: { lines: Array.from({ length: lines }, () => ({})) },
+      },
+    );
+
+  test('renders the request as selectable plain text with no link', async () => {
+    await setup();
+    const section = screen.getByTestId('run-detail-request');
+    expect(within(section).getByRole('header')).toHaveTextContent('REQUEST');
+    expect(text().props.children).toBe(fixture.request);
+    expect(text()).toHaveProp('selectable', true);
+    expect(text().props.onPress).toBeUndefined();
+    expect(within(section).getByText(/\[the report\]\(https:\/\/example\.test\/issues\/12\)/)).toBe(
+      text(),
+    );
+    expect(within(section).queryAllByRole('link')).toHaveLength(0);
+    expect(within(section).queryAllByTestId(/^markdown-/)).toHaveLength(0);
+    expect(screen.queryByTestId('run-detail-request-truncated')).toBeNull();
+  });
+
+  test('is collapsed to 6 lines, and Show all then Show less toggle it', async () => {
+    await setup();
+    expect(text()).toHaveProp('numberOfLines', 6);
+    await measure(12);
+    const more = screen.getByTestId('run-detail-request-more');
+    expect(more).toHaveTextContent(/Show all/);
+    expect(more).toHaveProp('accessibilityState', { disabled: false, expanded: false });
+    await fireEvent.press(more);
+    expect(text().props.numberOfLines).toBeUndefined();
+    expect(screen.getByTestId('run-detail-request-more')).toHaveTextContent(/Show less/);
+    expect(screen.getByTestId('run-detail-request-more')).toHaveProp('accessibilityState', {
+      disabled: false,
+      expanded: true,
+    });
+    await fireEvent.press(screen.getByTestId('run-detail-request-more'));
+    expect(text()).toHaveProp('numberOfLines', 6);
+    expect(screen.getByTestId('run-detail-request-more')).toHaveTextContent(/Show all/);
+  });
+
+  test('shows no Show all button for a request of 6 lines or fewer', async () => {
+    detail = { ...detail, request: 'one\ntwo\nthree\nfour\nfive\nsix' };
+    await setup();
+    await measure(6);
+    expect(screen.getByTestId('run-detail-request')).toBeTruthy();
+    expect(screen.queryByTestId('run-detail-request-more')).toBeNull();
+  });
+
+  test('shows Show all for more than 6 lines before the text is measured', async () => {
+    detail = { ...detail, request: 'one\ntwo\nthree\nfour\nfive\nsix\nseven' };
+    await setup();
+    expect(screen.getByTestId('run-detail-request-more')).toBeTruthy();
+  });
+
+  test('shows the truncated note only for a truncated request', async () => {
+    detail = { ...detail, ...requestTruncated } as Detail;
+    await setup();
+    const note = screen.getByTestId('run-detail-request-truncated');
+    expect(note).toHaveTextContent('Showing the first 8,000 characters.');
+    const muted = ReactNative.StyleSheet.flatten(
+      screen.getByTestId('run-detail-elapsed').props.style,
+    ).color;
+    expect(note).toHaveStyle({ color: muted });
+    expect(text().props.children).toBe(requestTruncated.request);
+  });
+
+  test.each([
+    ['null', requestNull],
+    ['empty', { ...fixture, request: '' }],
+    ['pre-0.9', pre09],
+  ])('is absent for the %s fixture', async (_, value) => {
+    detail = { ...detail, ...value } as Detail;
+    if (!('request' in value)) delete detail.request;
+    await setup();
+    expect(screen.getByTestId('run-detail-spend')).toBeTruthy();
+    expect(screen.queryByTestId('run-detail-request')).toBeNull();
+    expect(screen.queryByText('REQUEST')).toBeNull();
+  });
+
+  test('comes before SPEND, which comes before STEPS', async () => {
+    await setup();
+    expect(
+      screen.getAllByTestId(/^run-detail-(request|spend|steps)$/).map((node) => node.props.testID),
+    ).toEqual(['run-detail-request', 'run-detail-spend', 'run-detail-steps']);
+  });
+
+  test('at fontScale 2 and 320 pt, the text and the button wrap without clipping', async () => {
+    jest.spyOn(ReactNative, 'useWindowDimensions').mockReturnValue({
+      width: 320,
+      height: 568,
+      scale: 2,
+      fontScale: 2,
+    });
+    await setup();
+    await measure(30);
+    const more = screen.getByTestId('run-detail-request-more');
+    expect(more).toHaveProp('accessibilityLabel', 'Show all');
+    expect(more).toHaveStyle({ minHeight: 44, minWidth: 44 });
+    expect(within(more).getByText('Show all').props.numberOfLines).toBeUndefined();
+    for (const node of [text(), screen.getByTestId('run-detail-request')]) {
+      const style = ReactNative.StyleSheet.flatten(node.props.style) ?? {};
+      expect(style).not.toHaveProperty('height');
+      expect(style).not.toHaveProperty('maxHeight');
+      expect(style.overflow).not.toBe('hidden');
+      expect(node.props.adjustsFontSizeToFit).toBeUndefined();
+    }
+    expect(text()).toHaveProp('numberOfLines', 6);
+    await fireEvent.press(more);
+    expect(text().props.numberOfLines).toBeUndefined();
   });
 });

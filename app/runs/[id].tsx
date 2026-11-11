@@ -10,6 +10,7 @@ import { ExternalLink, TextButton } from '../../src/ui/interactions';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
 import { useRunSteps } from '../../src/live/useRunSteps';
+import { requestOf } from '../../src/api/requestOf';
 import { useColors } from '../../src/navigation/styles';
 import { LiveIndicator } from '../../src/runs/LiveIndicator';
 import { MarkdownResult } from '../../src/runs/MarkdownResult';
@@ -25,6 +26,7 @@ import {
 import { useRunDetail } from '../../src/runs/useRunDetail';
 
 const stepsPage = 20;
+const requestPreviewLines = 6;
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
@@ -38,6 +40,8 @@ function RunDetailContent({ id }: { id: string }) {
   const { graph } = useLiveGraph();
   const runSteps = useRunSteps(id, run, fetched);
   const [shownSteps, setShownSteps] = useState(stepsPage);
+  const [requestExpanded, setRequestExpanded] = useState(false);
+  const [requestLines, setRequestLines] = useState(0);
   const colors = useColors();
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -132,6 +136,10 @@ function RunDetailContent({ id }: { id: string }) {
     "step over the server's limit was not recorded",
     "steps over the server's limit were not recorded",
   );
+  const request = requestOf(run);
+  const requestLong =
+    request.kind === 'text' &&
+    Math.max(requestLines, request.text.split('\n').length) > requestPreviewLines;
   const children = graph?.runs.filter((child) => child.parentRunId === id) ?? [];
   return (
     <SafeAreaView
@@ -179,6 +187,54 @@ function RunDetailContent({ id }: { id: string }) {
               : ''}
           </Text>
         </Box>
+        {request.kind === 'text' &&
+          section(
+            'REQUEST',
+            'run-detail-request',
+            <>
+              <Box>
+                <Text
+                  testID="run-detail-request-text"
+                  selectable
+                  numberOfLines={requestExpanded ? undefined : requestPreviewLines}
+                  style={textStyle}
+                >
+                  {request.text}
+                </Text>
+                {/* An unconstrained, hidden copy reports how many lines the full text takes. */}
+                <Text
+                  testID="run-detail-request-measure"
+                  accessible={false}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  pointerEvents="none"
+                  className="absolute left-0 right-0 top-0 opacity-0"
+                  style={textStyle}
+                  onTextLayout={(event) => setRequestLines(event.nativeEvent.lines.length)}
+                >
+                  {request.text}
+                </Text>
+              </Box>
+              {requestLong && (
+                <TextButton
+                  testID="run-detail-request-more"
+                  label={requestExpanded ? 'Show less' : 'Show all'}
+                  expanded={requestExpanded}
+                  onPress={() => setRequestExpanded(!requestExpanded)}
+                  className="self-start"
+                />
+              )}
+              {request.truncated && (
+                <Text
+                  testID="run-detail-request-truncated"
+                  className="text-[17px]"
+                  style={[{ color: colors.muted }]}
+                >
+                  Showing the first 8,000 characters.
+                </Text>
+              )}
+            </>,
+          )}
         {section(
           'SPEND',
           'run-detail-spend',
