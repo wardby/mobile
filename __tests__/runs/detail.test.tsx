@@ -1,8 +1,15 @@
 import { theme } from '../../components/ui/theme';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { Profiler, type ReactNode } from 'react';
 import { Linking } from 'react-native';
 import RunDetail from '../../app/runs/[id]';
 import fixture from '../../src/api/__fixtures__/run-detail.json';
+import stepsOff from '../../src/api/__fixtures__/run-detail-steps-off.json';
+import pre09 from '../../src/api/__fixtures__/run-detail-pre-0.9.json';
+import events from '../fixtures/step-events.json';
+import { fakeStepStore } from '../live/fakes';
+import { StepStoreProvider, type StepStore } from '../../src/live/stepStore';
+import type { Step } from '../../src/live/steps';
 import graphFixture from '../../src/api/__fixtures__/graph.json';
 import { ApiError } from '../../src/api/client';
 import { session } from '../../src/auth/session';
@@ -28,9 +35,20 @@ jest.mock('../../src/live/useLiveGraph', () => ({ useLiveGraph: jest.fn() }));
 const getRun = jest.fn();
 let detail: Detail;
 let live: ReturnType<typeof useLiveGraph>;
+let store: StepStore;
+let renders = 0;
 const now = Date.parse('2026-10-01T10:07:12Z');
-const setup = async () => render(<RunDetail />);
+const wrapper = ({ children }: { children: ReactNode }) => (
+  <StepStoreProvider store={store}>
+    <Profiler id="run-detail" onRender={() => renders++}>
+      {children}
+    </Profiler>
+  </StepStoreProvider>
+);
+const setup = async () => render(<RunDetail />, { wrapper });
 beforeEach(() => {
+  store = fakeStepStore();
+  renders = 0;
   jest.useFakeTimers({ now });
   jest.clearAllMocks();
   detail = {
@@ -450,3 +468,134 @@ test.each([theme.light.tint, theme.dark.tint])(
     expect(open).toHaveBeenCalledWith('https://example.test/docs');
   },
 );
+
+const running = () => ({ ...fixture, status: 'running', finishedAt: null }) as Detail;
+const testIds = (root: string, pattern: RegExp) =>
+  within(screen.getByTestId(root))
+    .queryAllByTestId(pattern)
+    .map((node) => node.props.testID as string);
+const stepIds = () => testIds('run-detail-steps', /^run-step-\d+$/);
+const liveSteps = fakeStepStore(events.stream);
+const mergeEvents = () =>
+  act(async () => {
+    for (const runId of liveSteps.runIds()) store.merge(runId, liveSteps.getSteps(runId));
+  });
+const extraStep = (seq: number) => ({ ...fixture.steps[0], seq }) as Step;
+
+test.each([
+  ['with code', true],
+  ['without code', false],
+])('section order is SPEND, STEPS, CODE, OUTCOMES %s', async (_name, coding) => {
+  detail = { ...running(), ...(coding ? {} : { coding: null }) };
+  await setup();
+  expect(testIds('run-detail', /^run-detail-(spend|steps|code|outcomes)$/)).toEqual([
+    'run-detail-spend',
+    'run-detail-steps',
+    ...(coding ? ['run-detail-code'] : []),
+    'run-detail-outcomes',
+  ]);
+  expect(
+    within(screen.getByTestId('run-detail-steps')).getByRole('header', { name: 'STEPS' }),
+  ).toBeTruthy();
+});
+
+test('a running run shows its steps live, newest first, keyed by seq', async () => {
+  detail = running();
+  await setup();
+  expect(screen.getByTestId('run-detail-steps-live')).toBeTruthy();
+  expect(stepIds()).toEqual([18, 17, 16, 15, 14, 13].map((seq) => `run-step-${seq}`));
+  expect(screen.getByTestId('run-step-18')).toHaveProp(
+    'accessibilityLabel',
+    'Bash: npm test, in progress',
+  );
+  const markdown = screen.getByTestId('run-step-17-text');
+  expect(markdown).toHaveTextContent('Bash: echo **bold** [link](https://example.test/x)');
+  expect(markdown.props.onPress).toBeUndefined();
+  expect(screen.queryByRole('link')).toBeNull();
+  const before = screen.getByTestId('run-step-16');
+  await mergeEvents();
+  expect(stepIds()).toEqual([19, 18, 17, 16, 15, 14, 13].map((seq) => `run-step-${seq}`));
+  expect(screen.getByTestId('run-step-18')).toHaveProp(
+    'accessibilityLabel',
+    'Bash: npm test, succeeded',
+  );
+  expect(screen.getByTestId('run-step-19')).toHaveProp(
+    'accessibilityLabel',
+    'Agent said: Tests pass; opening the pull request.',
+  );
+  expect(screen.getByTestId('run-step-16')).toBe(before);
+  expect(getRun).toHaveBeenCalledTimes(1);
+});
+
+test('a step event for another run does not re-render the screen', async () => {
+  detail = running();
+  await setup();
+  const count = renders;
+  await act(async () => store.merge('run-other', [extraStep(99)]));
+  expect(renders).toBe(count);
+  await act(async () => store.merge('run-coding', [extraStep(99)]));
+  expect(renders).toBeGreaterThan(count);
+  expect(stepIds()[0]).toBe('run-step-99');
+});
+
+test('shows at most the newest 20 steps', async () => {
+  detail = running();
+  await setup();
+  await act(async () =>
+    store.merge(
+      'run-coding',
+      Array.from({ length: 30 }, (_, index) => extraStep(100 + index)),
+    ),
+  );
+  const ids = stepIds();
+  expect(ids).toHaveLength(20);
+  expect(ids[0]).toBe('run-step-129');
+  expect(ids[19]).toBe('run-step-110');
+});
+
+test('a running run with no steps yet is waiting', async () => {
+  detail = { ...running(), steps: [], stepsOmitted: 0, stepsDropped: 0 };
+  await setup();
+  expect(screen.getByTestId('run-detail-steps-waiting')).toHaveTextContent(
+    'Waiting for the first step…',
+  );
+});
+
+test('steps off: a finished run says no steps were recorded, neutrally', async () => {
+  detail = stepsOff as Detail;
+  await setup();
+  expect(screen.getByTestId('run-detail-steps-none')).toHaveTextContent(
+    'No steps recorded for this run.',
+  );
+  expect(screen.getByTestId('run-detail-steps')).not.toHaveTextContent(/Retry|Couldn't/);
+  expect(within(screen.getByTestId('run-detail-steps')).queryByRole('button')).toBeNull();
+});
+
+test.each([
+  ['running', null],
+  ['succeeded', '2026-10-01T10:06:00.000Z'],
+] as const)('a pre-0.9 %s run shows steps as unavailable', async (status, finishedAt) => {
+  detail = { ...(pre09 as unknown as Detail), status, finishedAt };
+  await setup();
+  expect(screen.getByTestId('run-detail-steps-unsupported')).toHaveTextContent(
+    "Steps aren't available on this server",
+  );
+  expect(screen.getByTestId('run-detail-steps')).not.toHaveTextContent(/Retry|Couldn't/);
+  expect(within(screen.getByTestId('run-detail-steps')).queryByRole('button')).toBeNull();
+  expect(screen.getByTestId('run-detail-spend')).toHaveTextContent(/\$0\.12 of \$5\.00/);
+  expect(screen.getByTestId('run-detail-code')).toHaveTextContent(/team\/project/);
+  expect(screen.getByTestId('run-detail-outcomes')).toHaveTextContent(/No outcomes yet\./);
+  await mergeEvents();
+  expect(screen.queryByTestId('run-step-19')).toBeNull();
+});
+
+test('steps show loading while run detail reloads with no steps to show', async () => {
+  detail = { ...running(), steps: [], stepsOmitted: 0, stepsDropped: 0 };
+  const view = await setup();
+  expect(screen.getByTestId('run-detail-steps-waiting')).toBeTruthy();
+  getRun.mockImplementation(() => new Promise(() => {}));
+  live = { ...live, resyncVersion: 1 };
+  await view.rerender(<RunDetail />);
+  expect(screen.getByTestId('run-detail-steps-loading')).toHaveTextContent('Loading steps…');
+  expect(screen.queryByTestId('run-detail-steps-waiting')).toBeNull();
+});

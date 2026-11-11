@@ -9,10 +9,12 @@ import { RefreshControl, ScrollView } from 'react-native';
 import { ExternalLink, TextButton } from '../../src/ui/interactions';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
+import { useRunSteps } from '../../src/live/useRunSteps';
 import { useColors } from '../../src/navigation/styles';
 import { LiveIndicator } from '../../src/runs/LiveIndicator';
 import { MarkdownResult } from '../../src/runs/MarkdownResult';
 import { RunRow } from '../../src/runs/RunRow';
+import { StepRow } from '../../src/runs/StepRow';
 import {
   formatCost,
   formatCount,
@@ -22,6 +24,8 @@ import {
 } from '../../src/runs/format';
 import { useRunDetail } from '../../src/runs/useRunDetail';
 
+const maxSteps = 20;
+
 export default function RunDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   return <RunDetailContent key={id} id={id} />;
@@ -30,6 +34,7 @@ export default function RunDetail() {
 function RunDetailContent({ id }: { id: string }) {
   const { run, loading, error, refetch } = useRunDetail(id);
   const { graph } = useLiveGraph();
+  const runSteps = useRunSteps(id, run);
   const colors = useColors();
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -107,6 +112,16 @@ function RunDetailContent({ id }: { id: string }) {
       : run.costUsd > 0
         ? 1
         : 0;
+  // A reload with nothing to show yet; an older server stays unsupported.
+  const stepsState =
+    loading && runSteps.steps.length === 0 && runSteps.state !== 'unsupported'
+      ? 'loading'
+      : runSteps.state;
+  const stepsMessage = {
+    unsupported: "Steps aren't available on this server",
+    none: 'No steps recorded for this run.',
+    waiting: 'Waiting for the first step…',
+  } as const;
   const children = graph?.runs.filter((child) => child.parentRunId === id) ?? [];
   return (
     <SafeAreaView
@@ -172,6 +187,30 @@ function RunDetailContent({ id }: { id: string }) {
               {run.turns} turns · {formatCount(run.tokensIn)} in · {formatCount(run.tokensOut)} out
             </Text>
           </>,
+        )}
+        {section(
+          'STEPS',
+          'run-detail-steps',
+          stepsState === 'loading' ? (
+            <Box testID="run-detail-steps-loading" className="flex-row items-center gap-3">
+              <Spinner />
+              <Text style={textStyle}>Loading steps…</Text>
+            </Box>
+          ) : stepsState === 'live' || stepsState === 'finished' ? (
+            <Box testID={`run-detail-steps-${stepsState}`}>
+              {runSteps.steps.slice(0, maxSteps).map((step) => (
+                <StepRow key={step.seq} step={step} />
+              ))}
+            </Box>
+          ) : (
+            <Text
+              testID={`run-detail-steps-${stepsState}`}
+              className="text-[17px]"
+              style={[{ color: colors.muted }]}
+            >
+              {stepsMessage[stepsState]}
+            </Text>
+          ),
         )}
         {run.coding &&
           section(
