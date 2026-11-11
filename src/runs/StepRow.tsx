@@ -28,8 +28,10 @@ export function StepRow({ step, numberOfLines = 2 }: { step: RunStep; numberOfLi
           style={{ backgroundColor: colors.muted }}
         />
       ) : (
+        // A minimum, not a fixed width: a wide status ("exit 127") grows the column
+        // at large type sizes instead of wrapping or clipping.
         <Box
-          className="w-14"
+          className="min-w-16 shrink-0"
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
           testID={`${testID}-glyph`}

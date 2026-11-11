@@ -1,6 +1,7 @@
 import { theme } from '../../components/ui/theme';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { Profiler, type ReactNode } from 'react';
+import * as ReactNative from 'react-native';
 import { Linking } from 'react-native';
 import RunDetail from '../../app/runs/[id]';
 import fixture from '../../src/api/__fixtures__/run-detail.json';
@@ -780,4 +781,83 @@ test('a run that finished while disconnected is refetched on reconnect: final st
     'accessibilityLabel',
     'Bash: npm test, succeeded',
   );
+});
+
+describe('at fontScale 2 and 320 pt', () => {
+  const symbols = /[✓✕…┃]/;
+  // Every accessibility label in the STEPS section.
+  const stepLabels = () =>
+    within(screen.getByTestId('run-detail-steps'))
+      .queryAllByLabelText(/./)
+      .map((node) => node.props.accessibilityLabel as string);
+  beforeEach(() => {
+    jest.spyOn(ReactNative, 'useWindowDimensions').mockReturnValue({
+      width: 320,
+      height: 568,
+      scale: 2,
+      fontScale: 2,
+    });
+  });
+
+  test('live step rows wrap to 2 lines, keep their glyph column, and read without symbols', async () => {
+    detail = running();
+    await setup();
+    await mergeEvents();
+    const rows = within(screen.getByTestId('run-detail-steps')).getAllByTestId(/^run-step-\d+$/);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const id = row.props.testID as string;
+      expect(row.props.accessibilityLabel).toMatch(/\w/);
+      expect(row.props.accessibilityLabel).not.toMatch(symbols);
+      expect(screen.getByTestId(`${id}-text`)).toHaveProp('numberOfLines', 2);
+      const glyph = screen.queryByTestId(`${id}-glyph`, { includeHiddenElements: true });
+      if (glyph) expect(glyph.props.className.split(' ')).toContain('shrink-0');
+    }
+    expect(stepLabels()).not.toHaveLength(0);
+    for (const label of stepLabels()) expect(label).not.toMatch(symbols);
+  });
+
+  test('the paging control, notes and rows have labels, testIDs and a 44 pt target', async () => {
+    detail = dropped as Detail;
+    await setup();
+    const more = screen.getByTestId('run-detail-steps-more');
+    expect(more).toHaveProp('accessibilityLabel', 'Show 20 more steps, 20 of 34 shown');
+    expect(more).toHaveStyle({ minHeight: 44, minWidth: 44 });
+    for (const id of ['run-detail-steps-omitted', 'run-detail-steps-dropped']) {
+      const note = screen.getByTestId(id);
+      expect(note.props.accessibilityLabel).toMatch(/\w/);
+      expect(note.props.numberOfLines).toBeUndefined();
+    }
+    for (const label of stepLabels()) expect(label).not.toMatch(symbols);
+    await fireEvent.press(more);
+    expect(screen.getByTestId('run-detail-steps-more')).toHaveProp(
+      'accessibilityLabel',
+      'Show fewer steps, 34 of 34 shown',
+    );
+    for (const label of stepLabels()) expect(label).not.toMatch(symbols);
+  });
+
+  test.each([
+    ['unsupported', { ...(pre09 as unknown as Detail), status: 'succeeded' } as Detail],
+    ['none', stepsOff as Detail],
+    ['waiting', { ...running(), steps: [], stepsOmitted: 0, stepsDropped: 0 } as Detail],
+  ])('the %s text wraps without clipping and reads without symbols', async (state, value) => {
+    detail = value;
+    await setup();
+    const text = screen.getByTestId(`run-detail-steps-${state}`);
+    expect(text.props.numberOfLines).toBeUndefined();
+    expect(text.props.accessibilityLabel).toMatch(/\w/);
+    expect(text.props.accessibilityLabel).not.toMatch(symbols);
+  });
+
+  test('the loading state reads without symbols', async () => {
+    detail = { ...running(), steps: [], stepsOmitted: 0, stepsDropped: 0 };
+    const view = await setup();
+    getRun.mockImplementation(() => new Promise(() => {}));
+    live = { ...live, resyncVersion: 1 };
+    await view.rerender(<RunDetail />);
+    const loading = screen.getByTestId('run-detail-steps-loading');
+    expect(loading).toHaveProp('accessibilityLabel', 'Loading steps');
+    for (const label of stepLabels()) expect(label).not.toMatch(symbols);
+  });
 });

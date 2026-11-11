@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, within } from '@testing-library/react-native';
 import * as Native from 'react-native';
 import fixture from '../../src/api/__fixtures__/run-detail.json';
 import { theme } from '../../components/ui/theme';
@@ -18,6 +18,7 @@ function nodes(node: Node | Node[] | null): Node[] {
   return [node, ...children.flatMap(nodes)];
 }
 const rendered = () => nodes(screen.toJSON() as Node | Node[] | null);
+afterEach(() => jest.restoreAllMocks());
 
 test.each([
   [13, 'Read: src/live/stream.ts, succeeded'],
@@ -89,3 +90,39 @@ test('rows never use the accent colour', async () => {
     for (const color of colors) expect([theme.light.tint, theme.dark.tint]).not.toContain(color);
   }
 });
+
+test.each([
+  ['exit 127', 'Bash: missing-tool --flag, exited with code 127'],
+  ['ok', 'Bash: missing-tool --flag, succeeded'],
+])(
+  'at fontScale 2 and 320 pt, a %p row keeps its glyph column and wraps text to 2 lines',
+  async (status, label) => {
+    jest.spyOn(Native, 'useWindowDimensions').mockReturnValue({
+      width: 320,
+      height: 568,
+      scale: 2,
+      fontScale: 2,
+    });
+    const step = { ...bySeq(15), seq: 99, status, summary: 'missing-tool --flag '.repeat(10) };
+    await render(<StepRow step={{ ...step, summary: 'missing-tool --flag' }} />);
+    expect(screen.getByTestId('run-step-99')).toHaveProp('accessibilityLabel', label);
+    await render(<StepRow step={step} />);
+    const glyph = screen.getByTestId('run-step-99-glyph', { includeHiddenElements: true });
+    const classes = (glyph.props.className as string).split(' ');
+    // A minimum, never a fixed width: a wide status like "exit 127" grows the column
+    // instead of wrapping or clipping, and the column never shrinks below it.
+    expect(classes).toEqual(expect.arrayContaining(['min-w-16', 'shrink-0']));
+    expect(classes.filter((name) => /^w-/.test(name))).toEqual([]);
+    expect(Native.StyleSheet.flatten(glyph.props.style)?.width).toBeUndefined();
+    const glyphText = within(glyph).getByText(status === 'ok' ? '✓' : status, {
+      includeHiddenElements: true,
+    });
+    expect(glyphText.props.numberOfLines).toBeUndefined();
+    const text = screen.getByTestId('run-step-99-text');
+    expect((text.props.className as string).split(' ')).toEqual(
+      expect.arrayContaining(['flex-1', 'min-w-0']),
+    );
+    expect(text.props).toMatchObject({ numberOfLines: 2, ellipsizeMode: 'tail' });
+    expect(text.props.allowFontScaling).not.toBe(false);
+  },
+);
