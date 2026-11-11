@@ -108,5 +108,7 @@
     }
   ],
   "stepsOmitted": 12,
-  "stepsDropped": 0
+  "stepsDropped": 0,
+  "request": "## Search returns stale results\n\nSearching right after an edit shows the old title. See [the report](https://example.test/issues/12) for steps.\n\nRepro:\n1. Edit a run title.\n2. Run `npm run search -- --fresh` straight away.\n3. The old title is listed.\n\nExpected: the new title.\nActual: the old title, until the cache expires.",
+  "requestTruncated": false
 }

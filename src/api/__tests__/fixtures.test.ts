@@ -2,6 +2,8 @@ import type { components } from '../schema';
 import graphJson from '../__fixtures__/graph.json';
 import rundetailJson from '../__fixtures__/run-detail.json';
 import rundetailstepsoffJson from '../__fixtures__/run-detail-steps-off.json';
+import rundetailrequesttruncatedJson from '../__fixtures__/run-detail-request-truncated.json';
+import rundetailrequestnullJson from '../__fixtures__/run-detail-request-null.json';
 import infraJson from '../__fixtures__/infra.json';
 import invalidsinceJson from '../__fixtures__/invalid_since.json';
 import notfoundJson from '../__fixtures__/not_found.json';
@@ -243,6 +245,9 @@ const rundetail = {
   ],
   stepsOmitted: 12,
   stepsDropped: 0,
+  request:
+    '## Search returns stale results\n\nSearching right after an edit shows the old title. See [the report](https://example.test/issues/12) for steps.\n\nRepro:\n1. Edit a run title.\n2. Run `npm run search -- --fresh` straight away.\n3. The old title is listed.\n\nExpected: the new title.\nActual: the old title, until the cache expires.',
+  requestTruncated: false,
 } satisfies components['schemas']['run-detail'];
 test('run-detail fixture matches the typed contract example', () => {
   expect(rundetailJson).toEqual(rundetail);
@@ -314,6 +319,8 @@ test('invalid_token fixture matches the typed contract example', () => {
 graphJson satisfies JsonShape<components['schemas']['graph-snapshot']>;
 rundetailJson satisfies JsonShape<components['schemas']['run-detail']>;
 rundetailstepsoffJson satisfies JsonShape<components['schemas']['run-detail']>;
+rundetailrequesttruncatedJson satisfies JsonShape<components['schemas']['run-detail']>;
+rundetailrequestnullJson satisfies JsonShape<components['schemas']['run-detail']>;
 infraJson satisfies JsonShape<components['schemas']['infra-info']>;
 invalidsinceJson satisfies JsonShape<components['schemas']['ViewerError']>;
 notfoundJson satisfies JsonShape<components['schemas']['ViewerError']>;
