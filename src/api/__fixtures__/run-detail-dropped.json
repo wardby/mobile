@@ -1,0 +1,336 @@
+{
+  "id": "run-coding",
+  "parentRunId": "run-parent",
+  "agentId": "builder",
+  "agentName": "Builder",
+  "agentKind": "coding",
+  "model": "planning-model",
+  "codingProvider": "claude",
+  "nativeExecutionMode": null,
+  "warmWorkerName": null,
+  "status": "succeeded",
+  "trigger": {
+    "kind": "subagent"
+  },
+  "turns": 3,
+  "tokensIn": 1200,
+  "tokensOut": 400,
+  "costUsd": 0.12,
+  "budgetUsd": 5,
+  "startedAt": "2026-10-01T10:00:00.000Z",
+  "finishedAt": "2026-10-01T10:20:00.000Z",
+  "heartbeatAt": "2026-10-01T10:00:00.000Z",
+  "outcomes": [],
+  "declaredServices": [
+    {
+      "name": "postgres",
+      "version": "16"
+    }
+  ],
+  "services": [
+    {
+      "name": "postgres",
+      "state": "ready",
+      "attempts": 1,
+      "reason": null,
+      "readyAt": "2026-10-01T10:00:00.000Z",
+      "failedAt": null,
+      "createdAt": "2026-10-01T10:00:00.000Z"
+    }
+  ],
+  "error": null,
+  "finalText": null,
+  "childRunIds": ["run-child"],
+  "coding": {
+    "provider": "github",
+    "repository": "team/project",
+    "baseRef": "main",
+    "headRef": "fix-search",
+    "queuedAt": null,
+    "failureCategory": null,
+    "services": [
+      {
+        "name": "postgres",
+        "version": "16",
+        "image": "postgres:16",
+        "envNames": []
+      }
+    ]
+  },
+  "steps": [
+    {
+      "seq": 41,
+      "at": "2026-10-01T10:06:50.000Z",
+      "kind": "tool",
+      "tool": "Read",
+      "summary": "src/live/stream.ts",
+      "status": "ok"
+    },
+    {
+      "seq": 42,
+      "at": "2026-10-01T10:07:00.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm test",
+      "status": "ok"
+    },
+    {
+      "seq": 43,
+      "at": "2026-10-01T10:07:10.000Z",
+      "kind": "tool",
+      "tool": "Edit",
+      "summary": "app/runs/[id].tsx",
+      "status": "ok"
+    },
+    {
+      "seq": 44,
+      "at": "2026-10-01T10:07:20.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run lint",
+      "status": "exit 1"
+    },
+    {
+      "seq": 45,
+      "at": "2026-10-01T10:07:30.000Z",
+      "kind": "said",
+      "tool": null,
+      "summary": "Fixing the lint error.",
+      "status": null
+    },
+    {
+      "seq": 46,
+      "at": "2026-10-01T10:07:40.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run typecheck",
+      "status": "ok"
+    },
+    {
+      "seq": 47,
+      "at": "2026-10-01T10:07:50.000Z",
+      "kind": "tool",
+      "tool": "Grep",
+      "summary": "useRunSteps",
+      "status": "error"
+    },
+    {
+      "seq": 48,
+      "at": "2026-10-01T10:08:00.000Z",
+      "kind": "tool",
+      "tool": "Read",
+      "summary": "src/live/stream.ts",
+      "status": "ok"
+    },
+    {
+      "seq": 49,
+      "at": "2026-10-01T10:08:10.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm test",
+      "status": "ok"
+    },
+    {
+      "seq": 50,
+      "at": "2026-10-01T10:08:20.000Z",
+      "kind": "tool",
+      "tool": "Edit",
+      "summary": "app/runs/[id].tsx",
+      "status": "ok"
+    },
+    {
+      "seq": 51,
+      "at": "2026-10-01T10:08:30.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run lint",
+      "status": "exit 1"
+    },
+    {
+      "seq": 52,
+      "at": "2026-10-01T10:08:40.000Z",
+      "kind": "said",
+      "tool": null,
+      "summary": "Fixing the lint error.",
+      "status": null
+    },
+    {
+      "seq": 53,
+      "at": "2026-10-01T10:08:50.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run typecheck",
+      "status": "ok"
+    },
+    {
+      "seq": 54,
+      "at": "2026-10-01T10:09:00.000Z",
+      "kind": "tool",
+      "tool": "Grep",
+      "summary": "useRunSteps",
+      "status": "error"
+    },
+    {
+      "seq": 55,
+      "at": "2026-10-01T10:09:10.000Z",
+      "kind": "tool",
+      "tool": "Read",
+      "summary": "src/live/stream.ts",
+      "status": "ok"
+    },
+    {
+      "seq": 56,
+      "at": "2026-10-01T10:09:20.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm test",
+      "status": "ok"
+    },
+    {
+      "seq": 57,
+      "at": "2026-10-01T10:09:30.000Z",
+      "kind": "tool",
+      "tool": "Edit",
+      "summary": "app/runs/[id].tsx",
+      "status": "ok"
+    },
+    {
+      "seq": 58,
+      "at": "2026-10-01T10:09:40.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run lint",
+      "status": "exit 1"
+    },
+    {
+      "seq": 59,
+      "at": "2026-10-01T10:09:50.000Z",
+      "kind": "said",
+      "tool": null,
+      "summary": "Fixing the lint error.",
+      "status": null
+    },
+    {
+      "seq": 60,
+      "at": "2026-10-01T10:10:00.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run typecheck",
+      "status": "ok"
+    },
+    {
+      "seq": 61,
+      "at": "2026-10-01T10:10:10.000Z",
+      "kind": "tool",
+      "tool": "Grep",
+      "summary": "useRunSteps",
+      "status": "error"
+    },
+    {
+      "seq": 62,
+      "at": "2026-10-01T10:10:20.000Z",
+      "kind": "tool",
+      "tool": "Read",
+      "summary": "src/live/stream.ts",
+      "status": "ok"
+    },
+    {
+      "seq": 63,
+      "at": "2026-10-01T10:10:30.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm test",
+      "status": "ok"
+    },
+    {
+      "seq": 64,
+      "at": "2026-10-01T10:10:40.000Z",
+      "kind": "tool",
+      "tool": "Edit",
+      "summary": "app/runs/[id].tsx",
+      "status": "ok"
+    },
+    {
+      "seq": 65,
+      "at": "2026-10-01T10:10:50.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run lint",
+      "status": "exit 1"
+    },
+    {
+      "seq": 66,
+      "at": "2026-10-01T10:11:00.000Z",
+      "kind": "said",
+      "tool": null,
+      "summary": "Fixing the lint error.",
+      "status": null
+    },
+    {
+      "seq": 67,
+      "at": "2026-10-01T10:11:10.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run typecheck",
+      "status": "ok"
+    },
+    {
+      "seq": 68,
+      "at": "2026-10-01T10:11:20.000Z",
+      "kind": "tool",
+      "tool": "Grep",
+      "summary": "useRunSteps",
+      "status": "error"
+    },
+    {
+      "seq": 69,
+      "at": "2026-10-01T10:11:30.000Z",
+      "kind": "tool",
+      "tool": "Read",
+      "summary": "src/live/stream.ts",
+      "status": "ok"
+    },
+    {
+      "seq": 70,
+      "at": "2026-10-01T10:11:40.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm test",
+      "status": "ok"
+    },
+    {
+      "seq": 71,
+      "at": "2026-10-01T10:11:50.000Z",
+      "kind": "tool",
+      "tool": "Edit",
+      "summary": "app/runs/[id].tsx",
+      "status": "ok"
+    },
+    {
+      "seq": 72,
+      "at": "2026-10-01T10:12:00.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run lint",
+      "status": "exit 1"
+    },
+    {
+      "seq": 73,
+      "at": "2026-10-01T10:12:10.000Z",
+      "kind": "said",
+      "tool": null,
+      "summary": "Fixing the lint error.",
+      "status": null
+    },
+    {
+      "seq": 74,
+      "at": "2026-10-01T10:12:20.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run typecheck",
+      "status": "ok"
+    }
+  ],
+  "stepsOmitted": 40,
+  "stepsDropped": 5
+}

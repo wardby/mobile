@@ -24,7 +24,9 @@ import {
 } from '../../src/runs/format';
 import { useRunDetail } from '../../src/runs/useRunDetail';
 
-const maxSteps = 20;
+const stepsPage = 20;
+
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 export default function RunDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,9 +34,10 @@ export default function RunDetail() {
 }
 
 function RunDetailContent({ id }: { id: string }) {
-  const { run, loading, error, refetch } = useRunDetail(id);
+  const { run, fetched, loading, error, refetch } = useRunDetail(id);
   const { graph } = useLiveGraph();
-  const runSteps = useRunSteps(id, run);
+  const runSteps = useRunSteps(id, run, fetched);
+  const [shownSteps, setShownSteps] = useState(stepsPage);
   const colors = useColors();
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -117,6 +120,7 @@ function RunDetailContent({ id }: { id: string }) {
     loading && runSteps.steps.length === 0 && runSteps.state !== 'unsupported'
       ? 'loading'
       : runSteps.state;
+  const allStepsShown = shownSteps >= runSteps.steps.length;
   const stepsMessage = {
     unsupported: "Steps aren't available on this server",
     none: 'No steps recorded for this run.',
@@ -197,10 +201,46 @@ function RunDetailContent({ id }: { id: string }) {
               <Text style={textStyle}>Loading steps…</Text>
             </Box>
           ) : stepsState === 'live' || stepsState === 'finished' ? (
-            <Box testID={`run-detail-steps-${stepsState}`}>
-              {runSteps.steps.slice(0, maxSteps).map((step) => (
-                <StepRow key={step.seq} step={step} />
-              ))}
+            <Box testID={`run-detail-steps-${stepsState}`} className="gap-3">
+              {runSteps.steps.length > 0 && (
+                <Box testID="run-detail-steps-list">
+                  {runSteps.steps.slice(0, shownSteps).map((step) => (
+                    <StepRow key={step.seq} step={step} />
+                  ))}
+                </Box>
+              )}
+              {runSteps.steps.length > stepsPage && (
+                <TextButton
+                  testID="run-detail-steps-more"
+                  label={allStepsShown ? 'Show fewer' : `Show ${stepsPage} more`}
+                  accessibilityLabel={`${allStepsShown ? 'Show fewer steps' : `Show ${stepsPage} more steps`}, ${Math.min(shownSteps, runSteps.steps.length)} of ${runSteps.steps.length} shown`}
+                  expanded={allStepsShown}
+                  onPress={() => setShownSteps(allStepsShown ? stepsPage : shownSteps + stepsPage)}
+                  className="self-start"
+                />
+              )}
+              {stepsState === 'finished' && runSteps.omitted > 0 && (
+                <Text
+                  testID="run-detail-steps-omitted"
+                  className="text-[17px]"
+                  style={[{ color: colors.muted }]}
+                >
+                  {plural(runSteps.omitted, 'earlier step not shown', 'earlier steps not shown')}
+                </Text>
+              )}
+              {stepsState === 'finished' && runSteps.dropped > 0 && (
+                <Text
+                  testID="run-detail-steps-dropped"
+                  className="text-[17px]"
+                  style={[{ color: colors.muted }]}
+                >
+                  {plural(
+                    runSteps.dropped,
+                    "step over the server's limit was not recorded",
+                    "steps over the server's limit were not recorded",
+                  )}
+                </Text>
+              )}
             </Box>
           ) : (
             <Text

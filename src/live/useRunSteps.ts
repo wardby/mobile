@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import type { components } from '../api/schema';
 import { stepsOf } from '../api/stepsOf';
 import { useStepStore } from './stepStore';
@@ -30,8 +30,20 @@ export function useLatestStep(id: string): Step | null {
 // disconnected come back when useRunDetail refetches on loadVersion: that only
 // signals "events may have been missed" (refetch to fill the gap), not that
 // data changed; the refetched steps merge in by seq.
-export function useRunSteps(id: string, detail: RunDetail | null) {
-  const live = useLiveSteps(id);
+// `fetched` is the run detail as the server last sent it (`detail` may carry
+// live graph fields). Once a fetch returns `finishedAt`, the live steps held at
+// that moment are kept and later step events for the run are ignored.
+export function useRunSteps(
+  id: string,
+  detail: RunDetail | null,
+  fetchedDetail: RunDetail | null = detail,
+) {
+  const current = useLiveSteps(id);
+  const finishedFetch = fetchedDetail?.finishedAt ? fetchedDetail : null;
+  const [frozen, setFrozen] = useState<{ detail: RunDetail; live: Step[] } | null>(null);
+  if (finishedFetch && frozen?.detail !== finishedFetch)
+    setFrozen({ detail: finishedFetch, live: current });
+  const live = finishedFetch && frozen?.detail === finishedFetch ? frozen.live : current;
   const fetched = detail ? stepsOf(detail) : null;
   const supported = fetched?.kind === 'steps';
   const fetchedSteps = fetched?.kind === 'steps' ? fetched.steps : none;
