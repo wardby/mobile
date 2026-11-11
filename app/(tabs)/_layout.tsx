@@ -19,7 +19,9 @@ export default function TabsLayout() {
               ? 'list-circle'
               : route.name === 'spend'
                 ? 'pie-chart'
-                : 'settings';
+                : route.name === 'infra'
+                  ? 'server'
+                  : 'settings';
           const tab = route.name === 'index' ? 'runs' : route.name;
           return (
             <Ionicons
@@ -75,7 +77,15 @@ export default function TabsLayout() {
           tabBarButtonTestID: 'tab-spend',
         }}
       />
-      <Tabs.Screen name="infra" options={{ href: null, headerTitle: 'Infrastructure' }} />
+      <Tabs.Screen
+        name="infra"
+        options={{
+          title: 'Infra',
+          headerTitle: 'Infrastructure',
+          tabBarAccessibilityLabel: 'Infrastructure',
+          tabBarButtonTestID: 'tab-infra',
+        }}
+      />
       <Tabs.Screen
         name="settings"
         options={{
