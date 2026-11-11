@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Box } from '../../components/ui/box';
@@ -12,21 +12,129 @@ import { useColors } from '../../src/navigation/styles';
 import { spendLevel } from '../../src/runs/format';
 import { periods, resetLabel } from '../../src/spend/period';
 import { useSpend, useSpendPeriod } from '../../src/spend/useSpend';
+import type { AgentRow, IssueRow } from '../../src/spend/helpers';
 
 const dollars = (value: number) => `$${value.toFixed(2)}`;
 const count = (value: number) => `${value} ${value === 1 ? 'run' : 'runs'}`;
 // Repeated taps must replace local Runs filters, even for the same agent.
 let agentNavigation = 0;
+const PREVIEW = 10;
+const PAGE = 50;
+// Memoized rows: paging re-renders only the newly shown rows, not the whole list.
+const IssueItem = memo(function IssueItem({ row }: { row: IssueRow }) {
+  const colors = useColors();
+  return (
+    <Box className="gap-1">
+      {row.url ? (
+        <ExternalLink testID={`spend-issue-${row.key}`} label={row.label} url={row.url} />
+      ) : (
+        <Text testID={`spend-issue-${row.key}`} style={{ color: colors.text }}>
+          {row.label}
+        </Text>
+      )}
+      <Text style={{ color: colors.muted }}>
+        {dollars(row.costUsd)} · {count(row.runs)}
+      </Text>
+    </Box>
+  );
+});
+const AgentItem = memo(function AgentItem({
+  row,
+  topUsd,
+  onPress,
+}: {
+  row: AgentRow;
+  topUsd: number;
+  onPress: (agentId: string) => void;
+}) {
+  const colors = useColors();
+  return (
+    <NavigationRow
+      testID={`spend-agent-${row.agentId}`}
+      accessibilityLabel={`View runs by ${row.agentName}`}
+      onPress={() => onPress(row.agentId)}
+    >
+      <Box className="flex-1 gap-2">
+        <Text style={{ color: colors.text }}>{row.agentName}</Text>
+        <Text style={{ color: colors.muted }}>
+          {dollars(row.costUsd)} · {count(row.runs)}
+        </Text>
+        <Progress
+          accessibilityLabel={`${row.agentName} relative spend`}
+          ratio={topUsd > 0 ? row.costUsd / topUsd : 0}
+          level="ok"
+          style={{ height: 4 }}
+        />
+      </Box>
+    </NavigationRow>
+  );
+});
+function Heading({ label, partial, testID }: { label: string; partial: boolean; testID: string }) {
+  const colors = useColors();
+  return (
+    <Box className="flex-row items-center gap-2">
+      <Text className="text-xs font-semibold" style={{ color: colors.muted }}>
+        {label}
+      </Text>
+      {partial && (
+        <Text testID={testID} className="text-xs" style={{ color: colors.muted }}>
+          Partial
+        </Text>
+      )}
+    </Box>
+  );
+}
+function Paging({
+  noun,
+  total,
+  shown,
+  setShown,
+}: {
+  noun: 'issue' | 'agent';
+  total: number;
+  shown: number;
+  setShown: (shown: number) => void;
+}) {
+  return (
+    <>
+      {shown < total && (
+        <TextButton
+          testID={`spend-${noun}-more`}
+          label={`Show ${PAGE} more`}
+          accessibilityLabel={`Show ${PAGE} more ${noun}s (${total} total)`}
+          onPress={() => setShown(Math.min(shown + PAGE, total))}
+        />
+      )}
+      {shown > PREVIEW && (
+        <TextButton
+          testID={`spend-${noun}-fewer`}
+          label="Show fewer"
+          accessibilityLabel={`Show only the top ${PREVIEW} ${noun}s`}
+          onPress={() => setShown(PREVIEW)}
+        />
+      )}
+    </>
+  );
+}
 export default function Spend() {
   const colors = useColors();
   const router = useRouter();
   const { period, setPeriod, ready } = useSpendPeriod();
   const { data, loading, error, refetch } = useSpend(period, ready);
-  const [issuesExpanded, setIssuesExpanded] = useState(false);
-  const [agentsExpanded, setAgentsExpanded] = useState(false);
+  const [issuesShown, setIssuesShown] = useState(PREVIEW);
+  const [agentsShown, setAgentsShown] = useState(PREVIEW);
   const window = periods.find((item) => item.key === period)!.window;
-  const linked = data?.issues.filter((row) => row.key !== 'unlinked') ?? [];
-  const unlinked = data?.issues.find((row) => row.key === 'unlinked');
+  const issues = data?.issues;
+  const linked = useMemo(() => issues?.filter((row) => row.key !== 'unlinked') ?? [], [issues]);
+  const unlinked = useMemo(() => issues?.find((row) => row.key === 'unlinked'), [issues]);
+  const openAgent = useCallback(
+    (agentId: string) =>
+      router.navigate({
+        pathname: '/(tabs)',
+        params: { agent: agentId, agentNavigation: String(++agentNavigation) },
+      }),
+    [router],
+  );
   const muted = { color: colors.muted };
   return (
     <SafeAreaView
@@ -60,8 +168,8 @@ export default function Spend() {
                 accessibilityState={{ selected: period === item.key }}
                 className="flex-1"
                 onPress={() => {
-                  setIssuesExpanded(false);
-                  setAgentsExpanded(false);
+                  setIssuesShown(PREVIEW);
+                  setAgentsShown(PREVIEW);
                   setPeriod(item.key);
                 }}
               />
@@ -105,7 +213,7 @@ export default function Spend() {
               )}
               {data.truncated && (
                 <Text testID="spend-truncated" style={muted}>
-                  Only the latest 2,000 runs are counted.
+                  Only the latest 2,000 runs are counted. Totals and breakdowns may be low.
                 </Text>
               )}
               {period === 'day' && data.groups.length > 0 && (
@@ -143,35 +251,20 @@ export default function Spend() {
               {data.runs > 0 && (
                 <>
                   <Box className="gap-3">
-                    <Text className="text-xs font-semibold" style={muted}>
-                      BY ISSUE
-                    </Text>
-                    {linked.slice(0, issuesExpanded ? undefined : 10).map((row) => (
-                      <Box key={row.key} className="gap-1">
-                        {row.url ? (
-                          <ExternalLink
-                            testID={`spend-issue-${row.key}`}
-                            label={row.label}
-                            url={row.url}
-                          />
-                        ) : (
-                          <Text testID={`spend-issue-${row.key}`} style={{ color: colors.text }}>
-                            {row.label}
-                          </Text>
-                        )}
-                        <Text style={muted}>
-                          {dollars(row.costUsd)} · {count(row.runs)}
-                        </Text>
-                      </Box>
+                    <Heading
+                      label="BY ISSUE"
+                      partial={data.truncated}
+                      testID="spend-issue-partial"
+                    />
+                    {linked.slice(0, issuesShown).map((row) => (
+                      <IssueItem key={row.key} row={row} />
                     ))}
-                    {linked.length > 10 && (
-                      <TextButton
-                        testID="spend-issue-more"
-                        label={issuesExpanded ? 'Show fewer' : `Show all (${linked.length})`}
-                        expanded={issuesExpanded}
-                        onPress={() => setIssuesExpanded(!issuesExpanded)}
-                      />
-                    )}
+                    <Paging
+                      noun="issue"
+                      total={linked.length}
+                      shown={Math.min(issuesShown, linked.length)}
+                      setShown={setIssuesShown}
+                    />
                     <Box testID="spend-issue-unlinked">
                       <Text style={{ color: colors.text }}>Not linked to an issue</Text>
                       <Text style={muted}>
@@ -180,48 +273,25 @@ export default function Spend() {
                     </Box>
                   </Box>
                   <Box className="gap-3">
-                    <Text className="text-xs font-semibold" style={muted}>
-                      BY AGENT
-                    </Text>
-                    {data.agents.slice(0, agentsExpanded ? undefined : 10).map((row) => (
-                      <NavigationRow
+                    <Heading
+                      label="BY AGENT"
+                      partial={data.truncated}
+                      testID="spend-agent-partial"
+                    />
+                    {data.agents.slice(0, agentsShown).map((row) => (
+                      <AgentItem
                         key={row.agentId}
-                        testID={`spend-agent-${row.agentId}`}
-                        accessibilityLabel={`View runs by ${row.agentName}`}
-                        onPress={() =>
-                          router.navigate({
-                            pathname: '/(tabs)',
-                            params: {
-                              agent: row.agentId,
-                              agentNavigation: String(++agentNavigation),
-                            },
-                          })
-                        }
-                      >
-                        <Box className="flex-1 gap-2">
-                          <Text style={{ color: colors.text }}>{row.agentName}</Text>
-                          <Text style={muted}>
-                            {dollars(row.costUsd)} · {count(row.runs)}
-                          </Text>
-                          <Progress
-                            accessibilityLabel={`${row.agentName} relative spend`}
-                            ratio={
-                              data.agents[0].costUsd > 0 ? row.costUsd / data.agents[0].costUsd : 0
-                            }
-                            level="ok"
-                            style={{ height: 4 }}
-                          />
-                        </Box>
-                      </NavigationRow>
-                    ))}
-                    {data.agents.length > 10 && (
-                      <TextButton
-                        testID="spend-agent-more"
-                        label={agentsExpanded ? 'Show fewer' : `Show all (${data.agents.length})`}
-                        expanded={agentsExpanded}
-                        onPress={() => setAgentsExpanded(!agentsExpanded)}
+                        row={row}
+                        topUsd={data.agents[0].costUsd}
+                        onPress={openAgent}
                       />
-                    )}
+                    ))}
+                    <Paging
+                      noun="agent"
+                      total={data.agents.length}
+                      shown={Math.min(agentsShown, data.agents.length)}
+                      setShown={setAgentsShown}
+                    />
                   </Box>
                 </>
               )}
