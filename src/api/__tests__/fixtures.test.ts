@@ -5,9 +5,12 @@ import rundetailstepsoffJson from '../__fixtures__/run-detail-steps-off.json';
 import rundetailrequesttruncatedJson from '../__fixtures__/run-detail-request-truncated.json';
 import rundetailrequestnullJson from '../__fixtures__/run-detail-request-null.json';
 import infraJson from '../__fixtures__/infra.json';
+import infrakubernetesJson from '../__fixtures__/infra-kubernetes.json';
+import infraunconfiguredJson from '../__fixtures__/infra-unconfigured.json';
 import invalidsinceJson from '../__fixtures__/invalid_since.json';
 import notfoundJson from '../__fixtures__/not_found.json';
 import invalidtokenJson from '../__fixtures__/invalid_token.json';
+import internalerrorJson from '../__fixtures__/internal_error.json';
 
 // JSON imports widen string literals. Check their structure here and compare
 // them to the fully typed examples below to retain enum validation.
@@ -298,6 +301,51 @@ const infra = {
 test('infra fixture matches the typed contract example', () => {
   expect(infraJson).toEqual(infra);
 });
+const infrakubernetes = {
+  launcher: 'kubernetes',
+  kubernetes: {
+    namespace: 'example-namespace',
+    platform: 'example-platform',
+    runtimeClass: 'example-runtime',
+    proxyService: 'example-proxy',
+    runLabel: 'example.test/run',
+    runLabelHashChars: 12,
+    componentLabel: {
+      'example.test/component': 'coding',
+    },
+    managedByLabel: {
+      'example.test/managed-by': 'wardby',
+    },
+  },
+  native: {
+    launcher: 'kubernetes',
+    warmPoolSize: 3,
+    kubernetes: {
+      namespace: 'example-native-namespace',
+      runtimeClass: null,
+      runLabel: 'example.test/native-run',
+      componentLabel: {
+        'example.test/component': 'native',
+      },
+      warmPoolLabel: {
+        'example.test/pool': 'warm',
+        'example.test/tier': 'native',
+      },
+      warmWorkerLabel: 'example.test/warm-worker',
+    },
+  },
+} satisfies components['schemas']['infra-info'];
+test('infra-kubernetes fixture matches the typed contract example', () => {
+  expect(infrakubernetesJson).toEqual(infrakubernetes);
+});
+const infraunconfigured = {
+  launcher: 'local',
+  kubernetes: null,
+  native: null,
+} satisfies components['schemas']['infra-info'];
+test('infra-unconfigured fixture matches the typed contract example', () => {
+  expect(infraunconfiguredJson).toEqual(infraunconfigured);
+});
 const invalidsince = {
   error: 'invalid_since',
 } satisfies components['schemas']['ViewerError'];
@@ -316,12 +364,22 @@ const invalidtoken = {
 test('invalid_token fixture matches the typed contract example', () => {
   expect(invalidtokenJson).toEqual(invalidtoken);
 });
+const internalerror = {
+  error: 'internal_error',
+  id: 'failure-1',
+} satisfies components['schemas']['ViewerInternalError'];
+test('internal_error fixture matches the typed contract example', () => {
+  expect(internalerrorJson).toEqual(internalerror);
+});
 graphJson satisfies JsonShape<components['schemas']['graph-snapshot']>;
 rundetailJson satisfies JsonShape<components['schemas']['run-detail']>;
 rundetailstepsoffJson satisfies JsonShape<components['schemas']['run-detail']>;
 rundetailrequesttruncatedJson satisfies JsonShape<components['schemas']['run-detail']>;
 rundetailrequestnullJson satisfies JsonShape<components['schemas']['run-detail']>;
 infraJson satisfies JsonShape<components['schemas']['infra-info']>;
+infrakubernetesJson satisfies JsonShape<components['schemas']['infra-info']>;
+infraunconfiguredJson satisfies JsonShape<components['schemas']['infra-info']>;
 invalidsinceJson satisfies JsonShape<components['schemas']['ViewerError']>;
 notfoundJson satisfies JsonShape<components['schemas']['ViewerError']>;
 invalidtokenJson satisfies JsonShape<components['schemas']['ViewerError']>;
+internalerrorJson satisfies JsonShape<components['schemas']['ViewerInternalError']>;

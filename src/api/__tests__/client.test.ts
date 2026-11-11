@@ -1,18 +1,26 @@
 import graph from '../__fixtures__/graph.json';
 import run from '../__fixtures__/run-detail.json';
 import infra from '../__fixtures__/infra.json';
+import infraKubernetes from '../__fixtures__/infra-kubernetes.json';
+import infraUnconfigured from '../__fixtures__/infra-unconfigured.json';
 import invalidSince from '../__fixtures__/invalid_since.json';
 import notFound from '../__fixtures__/not_found.json';
 import invalidToken from '../__fixtures__/invalid_token.json';
+import internalError from '../__fixtures__/internal_error.json';
 import { ApiError, createApiClient } from '../client';
 
 const baseUrl = new URL('/ ', 'https://example.invalid').origin;
-function setup(body: unknown, status = 200, token: string | null = null) {
+function setup(
+  body: unknown,
+  status = 200,
+  token: string | null = null,
+  requestId: string | null = 'request-1',
+) {
   const fetch = jest.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
-    headers: new Headers({ 'x-request-id': 'request-1' }),
+    headers: new Headers(requestId === null ? {} : { 'x-request-id': requestId }),
   });
   const onUnauthorized = jest.fn();
   const client = createApiClient({ baseUrl, getAccessToken: () => token, fetch, onUnauthorized });
@@ -34,6 +42,14 @@ it.each(['getGraph', 'getInfra'] as const)(
     );
   },
 );
+it.each([
+  ['infra.json', infra],
+  ['infra-kubernetes.json', infraKubernetes],
+  ['infra-unconfigured.json', infraUnconfigured],
+] as const)('returns the getInfra %s response unchanged', async (_name, body) => {
+  const { client } = setup(body);
+  expect(await client.getInfra()).toEqual(body);
+});
 it('encodes the run id and returns run detail', async () => {
   const { client, fetch } = setup(run);
   expect(await client.getRun('run/a ?#')).toEqual(run);
@@ -65,6 +81,21 @@ it.each([
   });
   expect(onUnauthorized).toHaveBeenCalledTimes(status === 401 ? 2 : 0);
 });
+it.each([
+  [401, 'request-1', invalidToken, 'request-1'],
+  [403, 'request-1', invalidToken, 'request-1'],
+  [500, 'request-1', internalError, 'request-1'],
+  [500, null, internalError, internalError.id],
+] as const)(
+  'maps getInfra HTTP %s errors (x-request-id header: %s)',
+  async (status, header, body, requestId) => {
+    const { client, onUnauthorized } = setup(body, status, null, header);
+    const error = await client.getInfra().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status, code: body.error, requestId });
+    expect(onUnauthorized).toHaveBeenCalledTimes(status === 401 ? 1 : 0);
+  },
+);
 it('maps network failures', async () => {
   const { client, fetch, onUnauthorized } = setup(null);
   fetch.mockRejectedValue(new TypeError('Connection failed'));

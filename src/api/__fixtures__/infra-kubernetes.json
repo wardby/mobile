@@ -1,0 +1,34 @@
+{
+  "launcher": "kubernetes",
+  "kubernetes": {
+    "namespace": "example-namespace",
+    "platform": "example-platform",
+    "runtimeClass": "example-runtime",
+    "proxyService": "example-proxy",
+    "runLabel": "example.test/run",
+    "runLabelHashChars": 12,
+    "componentLabel": {
+      "example.test/component": "coding"
+    },
+    "managedByLabel": {
+      "example.test/managed-by": "wardby"
+    }
+  },
+  "native": {
+    "launcher": "kubernetes",
+    "warmPoolSize": 3,
+    "kubernetes": {
+      "namespace": "example-native-namespace",
+      "runtimeClass": null,
+      "runLabel": "example.test/native-run",
+      "componentLabel": {
+        "example.test/component": "native"
+      },
+      "warmPoolLabel": {
+        "example.test/pool": "warm",
+        "example.test/tier": "native"
+      },
+      "warmWorkerLabel": "example.test/warm-worker"
+    }
+  }
+}
