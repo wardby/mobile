@@ -769,3 +769,33 @@ test.each([
   for (const row of screen.queryAllByTestId(/^run-row-/))
     expect(row).toHaveTextContent(/^(Planner|Builder)(Running|Succeeded)2h ago · \$0.12 of \$5›$/);
 });
+
+test('at fontScale 2 and 320 pt the step line stays one truncated line in a 64 pt row', async () => {
+  jest.spyOn(ReactNative, 'useWindowDimensions').mockReturnValue({
+    width: 320,
+    height: 568,
+    scale: 2,
+    fontScale: 2,
+  });
+  const steps = fakeStepStore();
+  const [runId, [step]] = succeeded;
+  steps.merge(runId, [
+    { ...step, status: 'exit 127', summary: 'npm test -- --watch=false '.repeat(20) },
+  ]);
+  steps.merge(...stepFrames(stepEvents.stream, 'idle')[2]);
+  state.graph = graphOf([run('run-coding'), run('idle', { startedAt: minutes(10) })]);
+  await render(app(steps));
+  for (const id of ['run-coding', 'idle']) {
+    const row = screen.getByTestId(`run-row-${id}`);
+    expect(row.props.className.split(' ')).toContain('h-16');
+    expect(row.props.accessibilityLabel).not.toMatch(/[✓✕…┃]/);
+    const line = screen.getByTestId(`run-latest-step-${id}`);
+    expect(line).toHaveProp('numberOfLines', 1);
+    expect(line).toHaveProp('ellipsizeMode', 'tail');
+    expect(line.parent?.props.className).toContain('flex-1 min-w-0');
+  }
+  expect(screen.getByTestId('run-row-run-coding').props.accessibilityLabel).toMatch(
+    /, now: Bash: (npm test -- --watch=false )+, exited with code 127$/,
+  );
+  expect(screen.getByTestId('run-latest-step-run-coding')).toHaveTextContent(/^exit 127 Bash:/);
+});

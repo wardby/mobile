@@ -126,6 +126,12 @@ function RunDetailContent({ id }: { id: string }) {
     none: 'No steps recorded for this run.',
     waiting: 'Waiting for the first step…',
   } as const;
+  const omittedNote = plural(runSteps.omitted, 'earlier step not shown', 'earlier steps not shown');
+  const droppedNote = plural(
+    runSteps.dropped,
+    "step over the server's limit was not recorded",
+    "steps over the server's limit were not recorded",
+  );
   const children = graph?.runs.filter((child) => child.parentRunId === id) ?? [];
   return (
     <SafeAreaView
@@ -196,7 +202,12 @@ function RunDetailContent({ id }: { id: string }) {
           'STEPS',
           'run-detail-steps',
           stepsState === 'loading' ? (
-            <Box testID="run-detail-steps-loading" className="flex-row items-center gap-3">
+            <Box
+              testID="run-detail-steps-loading"
+              accessible
+              accessibilityLabel="Loading steps"
+              className="flex-row items-center gap-3"
+            >
               <Spinner />
               <Text style={textStyle}>Loading steps…</Text>
             </Box>
@@ -222,29 +233,28 @@ function RunDetailContent({ id }: { id: string }) {
               {stepsState === 'finished' && runSteps.omitted > 0 && (
                 <Text
                   testID="run-detail-steps-omitted"
+                  accessibilityLabel={omittedNote}
                   className="text-[17px]"
                   style={[{ color: colors.muted }]}
                 >
-                  {plural(runSteps.omitted, 'earlier step not shown', 'earlier steps not shown')}
+                  {omittedNote}
                 </Text>
               )}
               {stepsState === 'finished' && runSteps.dropped > 0 && (
                 <Text
                   testID="run-detail-steps-dropped"
+                  accessibilityLabel={droppedNote}
                   className="text-[17px]"
                   style={[{ color: colors.muted }]}
                 >
-                  {plural(
-                    runSteps.dropped,
-                    "step over the server's limit was not recorded",
-                    "steps over the server's limit were not recorded",
-                  )}
+                  {droppedNote}
                 </Text>
               )}
             </Box>
           ) : (
             <Text
               testID={`run-detail-steps-${stepsState}`}
+              accessibilityLabel={stepsMessage[stepsState].replace(/…$/, '')}
               className="text-[17px]"
               style={[{ color: colors.muted }]}
             >
