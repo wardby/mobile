@@ -7,7 +7,7 @@ import { useLiveGraph } from '../live/useLiveGraph';
 type Run = components['schemas']['run-detail'];
 
 export function useRunDetail(id: string) {
-  const { graph, resyncVersion } = useLiveGraph();
+  const { graph, resyncVersion, loadVersion } = useLiveGraph();
   const [detail, setDetail] = useState<Run | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
@@ -41,21 +41,30 @@ export function useRunDetail(id: string) {
   }, [refetch]);
   const live = graph?.runs.find((run) => run.id === id);
   const outcomes = live ? JSON.stringify(live.outcomes) : undefined;
-  const previous = useRef({ id, outcomes, resyncVersion });
+  const status = live?.status ?? (detail?.id === id ? detail.status : undefined);
+  const active = status === 'pending' || status === 'running';
+  const previous = useRef({ id, outcomes, resyncVersion, loadVersion, active });
   useEffect(() => {
     const before = previous.current;
-    previous.current = { id, outcomes, resyncVersion };
+    previous.current = { id, outcomes, resyncVersion, loadVersion, active };
     if (before.id !== id) return;
     const beforeOutcomes =
       before.outcomes ?? (detail ? JSON.stringify(detail.outcomes) : undefined);
+    // loadVersion only says events may have been missed while disconnected
+    // (reconnect, return from background), not that data changed: refetch an
+    // run that was active before the reload or is active now (it may have
+    // finished while disconnected) so useRunSteps can fill the gap by seq.
     if (
       before.resyncVersion !== resyncVersion ||
+      ((before.active || active) && before.loadVersion !== loadVersion) ||
       (beforeOutcomes !== undefined && outcomes !== undefined && beforeOutcomes !== outcomes)
     )
       void refetch();
-  }, [id, outcomes, resyncVersion, refetch, detail]);
+  }, [id, outcomes, resyncVersion, loadVersion, active, refetch, detail]);
   const run = detail?.id === id ? detail : null;
   return {
+    // The run detail as last fetched, without the live graph fields.
+    fetched: run,
     run:
       run && live
         ? {

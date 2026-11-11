@@ -9,10 +9,13 @@ import { RefreshControl, ScrollView } from 'react-native';
 import { ExternalLink, TextButton } from '../../src/ui/interactions';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
+import { useRunSteps } from '../../src/live/useRunSteps';
+import { requestOf } from '../../src/api/requestOf';
 import { useColors } from '../../src/navigation/styles';
 import { LiveIndicator } from '../../src/runs/LiveIndicator';
 import { MarkdownResult } from '../../src/runs/MarkdownResult';
 import { RunRow } from '../../src/runs/RunRow';
+import { StepRow } from '../../src/runs/StepRow';
 import {
   formatCost,
   formatCount,
@@ -22,14 +25,23 @@ import {
 } from '../../src/runs/format';
 import { useRunDetail } from '../../src/runs/useRunDetail';
 
+const stepsPage = 20;
+const requestPreviewLines = 6;
+
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
 export default function RunDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   return <RunDetailContent key={id} id={id} />;
 }
 
 function RunDetailContent({ id }: { id: string }) {
-  const { run, loading, error, refetch } = useRunDetail(id);
+  const { run, fetched, loading, error, refetch } = useRunDetail(id);
   const { graph } = useLiveGraph();
+  const runSteps = useRunSteps(id, run, fetched);
+  const [shownSteps, setShownSteps] = useState(stepsPage);
+  const [requestExpanded, setRequestExpanded] = useState(false);
+  const [requestLines, setRequestLines] = useState(0);
   const colors = useColors();
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -107,6 +119,27 @@ function RunDetailContent({ id }: { id: string }) {
       : run.costUsd > 0
         ? 1
         : 0;
+  // A reload with nothing to show yet; an older server stays unsupported.
+  const stepsState =
+    loading && runSteps.steps.length === 0 && runSteps.state !== 'unsupported'
+      ? 'loading'
+      : runSteps.state;
+  const allStepsShown = shownSteps >= runSteps.steps.length;
+  const stepsMessage = {
+    unsupported: "Steps aren't available on this server",
+    none: 'No steps recorded for this run.',
+    waiting: 'Waiting for the first step…',
+  } as const;
+  const omittedNote = plural(runSteps.omitted, 'earlier step not shown', 'earlier steps not shown');
+  const droppedNote = plural(
+    runSteps.dropped,
+    "step over the server's limit was not recorded",
+    "steps over the server's limit were not recorded",
+  );
+  const request = requestOf(run);
+  const requestLong =
+    request.kind === 'text' &&
+    Math.max(requestLines, request.text.split('\n').length) > requestPreviewLines;
   const children = graph?.runs.filter((child) => child.parentRunId === id) ?? [];
   return (
     <SafeAreaView
@@ -117,6 +150,7 @@ function RunDetailContent({ id }: { id: string }) {
       {header}
       <ScrollView
         testID="run-detail"
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerClassName="p-6 gap-8"
         refreshControl={
           <RefreshControl
@@ -153,6 +187,54 @@ function RunDetailContent({ id }: { id: string }) {
               : ''}
           </Text>
         </Box>
+        {request.kind === 'text' &&
+          section(
+            'REQUEST',
+            'run-detail-request',
+            <>
+              <Box>
+                <Text
+                  testID="run-detail-request-text"
+                  selectable
+                  numberOfLines={requestExpanded ? undefined : requestPreviewLines}
+                  style={textStyle}
+                >
+                  {request.text}
+                </Text>
+                {/* An unconstrained, hidden copy reports how many lines the full text takes. */}
+                <Text
+                  testID="run-detail-request-measure"
+                  accessible={false}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  pointerEvents="none"
+                  className="absolute left-0 right-0 top-0 opacity-0"
+                  style={textStyle}
+                  onTextLayout={(event) => setRequestLines(event.nativeEvent.lines.length)}
+                >
+                  {request.text}
+                </Text>
+              </Box>
+              {requestLong && (
+                <TextButton
+                  testID="run-detail-request-more"
+                  label={requestExpanded ? 'Show less' : 'Show all'}
+                  expanded={requestExpanded}
+                  onPress={() => setRequestExpanded(!requestExpanded)}
+                  className="self-start"
+                />
+              )}
+              {request.truncated && (
+                <Text
+                  testID="run-detail-request-truncated"
+                  className="text-[17px]"
+                  style={[{ color: colors.muted }]}
+                >
+                  Showing the first 8,000 characters.
+                </Text>
+              )}
+            </>,
+          )}
         {section(
           'SPEND',
           'run-detail-spend',
@@ -171,6 +253,70 @@ function RunDetailContent({ id }: { id: string }) {
               {run.turns} turns · {formatCount(run.tokensIn)} in · {formatCount(run.tokensOut)} out
             </Text>
           </>,
+        )}
+        {section(
+          'STEPS',
+          'run-detail-steps',
+          stepsState === 'loading' ? (
+            <Box
+              testID="run-detail-steps-loading"
+              accessible
+              accessibilityLabel="Loading steps"
+              className="flex-row items-center gap-3"
+            >
+              <Spinner />
+              <Text style={textStyle}>Loading steps…</Text>
+            </Box>
+          ) : stepsState === 'live' || stepsState === 'finished' ? (
+            <Box testID={`run-detail-steps-${stepsState}`} className="gap-3">
+              {runSteps.steps.length > 0 && (
+                <Box testID="run-detail-steps-list">
+                  {runSteps.steps.slice(0, shownSteps).map((step) => (
+                    <StepRow key={step.seq} step={step} />
+                  ))}
+                </Box>
+              )}
+              {runSteps.steps.length > stepsPage && (
+                <TextButton
+                  testID="run-detail-steps-more"
+                  label={allStepsShown ? 'Show fewer' : `Show ${stepsPage} more`}
+                  accessibilityLabel={`${allStepsShown ? 'Show fewer steps' : `Show ${stepsPage} more steps`}, ${Math.min(shownSteps, runSteps.steps.length)} of ${runSteps.steps.length} shown`}
+                  expanded={allStepsShown}
+                  onPress={() => setShownSteps(allStepsShown ? stepsPage : shownSteps + stepsPage)}
+                  className="self-start"
+                />
+              )}
+              {stepsState === 'finished' && runSteps.omitted > 0 && (
+                <Text
+                  testID="run-detail-steps-omitted"
+                  accessibilityLabel={omittedNote}
+                  className="text-[17px]"
+                  style={[{ color: colors.muted }]}
+                >
+                  {omittedNote}
+                </Text>
+              )}
+              {stepsState === 'finished' && runSteps.dropped > 0 && (
+                <Text
+                  testID="run-detail-steps-dropped"
+                  accessibilityLabel={droppedNote}
+                  className="text-[17px]"
+                  style={[{ color: colors.muted }]}
+                >
+                  {droppedNote}
+                </Text>
+              )}
+            </Box>
+          ) : (
+            <Text
+              testID={`run-detail-steps-${stepsState}`}
+              accessibilityLabel={stepsMessage[stepsState].replace(/…$/, '')}
+              className="text-[17px]"
+              style={[{ color: colors.muted }]}
+            >
+              {stepsMessage[stepsState]}
+            </Text>
+          ),
         )}
         {run.coding &&
           section(

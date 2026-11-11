@@ -17,6 +17,13 @@ import graphFixture from '../../src/api/__fixtures__/graph.json';
 import type { components } from '../../src/api/schema';
 import { useSession } from '../../src/auth/session';
 import { useLiveGraph, type LiveGraphState } from '../../src/live/useLiveGraph';
+import { SseParser } from '../../src/live/sse';
+import { createStepStore, StepStoreProvider, type StepStore } from '../../src/live/stepStore';
+import { stepFromEvent, type Step } from '../../src/live/steps';
+import stepEvents from '../fixtures/step-events.json';
+import stepBurst from '../fixtures/step-burst.json';
+import stepsOff from '../fixtures/events-steps-off.json';
+import { fakeStepStore } from '../live/fakes';
 import { statusStyle } from '../../src/runs/status';
 
 type Graph = components['schemas']['graph-snapshot'];
@@ -40,6 +47,18 @@ jest.mock('../../src/live/useLiveGraph', () => ({
   useLiveGraph: jest.fn(),
   LiveGraphProvider: ({ children }: { children: ReactNode }) => children,
 }));
+// Counts row renders: RunRow formats its start time once per render.
+const mockRowRenders: string[] = [];
+jest.mock('../../src/runs/format', () => {
+  const actual = jest.requireActual('../../src/runs/format');
+  return {
+    ...actual,
+    relativeTime: (iso: string, now: number) => {
+      mockRowRenders.push(iso);
+      return actual.relativeTime(iso, now);
+    },
+  };
+});
 jest.mock('expo-constants', () => ({
   __esModule: true,
   default: { expoConfig: { version: '1.0.0' } },
@@ -54,7 +73,10 @@ const context = getMockContext({
   '(tabs)/settings': Settings,
   'runs/[id]': RunDetail,
 });
-const app = () => <ExpoRoot context={context} location={new URL('http://localhost/')} />;
+const app = (steps?: StepStore) => {
+  const root = <ExpoRoot context={context} location={new URL('http://localhost/')} />;
+  return steps ? <StepStoreProvider store={steps}>{root}</StepStoreProvider> : root;
+};
 
 const now = Date.parse('2026-10-01T12:00:00.000Z');
 const minutes = (n: number) => new Date(now - n * 60000).toISOString();
@@ -359,6 +381,12 @@ test('shows a muted footer when the graph is truncated', async () => {
     'Showing the latest 500 runs from the last 24 hours.',
   );
 });
+test('shows no footer when the graph is complete', async () => {
+  state.graph = { ...graphOf([run('one')]), truncated: false };
+  await render(app());
+  expect(screen.getByTestId('run-row-one')).toBeTruthy();
+  expect(screen.queryByTestId('runs-limit')).toBeNull();
+});
 
 test('expires a run between minute ticks at its exact window boundary', async () => {
   state.graph = graphOf([
@@ -530,3 +558,244 @@ test.each(['light', 'dark'] as const)(
     }
   },
 );
+
+const chainGraph = require('../../src/api/__fixtures__/graph-chains.json') as Graph;
+const loadChains = () => {
+  state.graph = { ...chainGraph, runs: chainGraph.runs.map((r) => ({ ...r })) };
+};
+
+test('chain heading, event details, singleton descendant ref and accessible labels', async () => {
+  loadChains();
+  await render(app());
+  const heading = screen.getByTestId('run-group-wardby/wardby-mobile#64');
+  expect(heading).toHaveTextContent(/wardby-mobile#64/);
+  expect(heading).toHaveTextContent(/3 runs · \$1.84/);
+  expect(heading).toHaveProp(
+    'accessibilityLabel',
+    'Pull request wardby-mobile#64, Running, 3 runs, $1.84, opens in browser',
+  );
+  expect(screen.getByTestId('run-group-state-wardby/wardby-mobile#64')).toHaveTextContent(
+    'Running',
+  );
+  for (const [id, event] of [
+    ['opened', 'opened'],
+    ['review', 'review'],
+    ['follow-up', 'follow-up'],
+  ]) {
+    expect(screen.getByTestId(`run-row-${id}`)).toHaveTextContent(new RegExp(`· ${event}`));
+    expect(screen.getByTestId(`run-row-${id}`).props.accessibilityLabel).toMatch(
+      new RegExp(`, ${event}$`),
+    );
+  }
+  const singleton = screen.getByTestId('run-row-sub-builder');
+  expect(singleton).toHaveTextContent(/· wardby#212 opened/);
+  expect(singleton.props.className).toContain('h-16');
+  expect(within(singleton).getByText(/wardby#212 opened/)).toHaveProp('numberOfLines', 1);
+});
+test('chain heading opens browser and grouped row opens detail', async () => {
+  loadChains();
+  const open = jest.spyOn(ReactNative.Linking, 'openURL').mockResolvedValue(undefined);
+  await render(app());
+  await fireEvent.press(screen.getByTestId('run-group-wardby/wardby-mobile#64'));
+  expect(open).toHaveBeenCalledWith('https://github.com/wardby/wardby-mobile/pull/64');
+  await fireEvent.press(screen.getByTestId('run-row-review'));
+  expect(screen.getByTestId('run-detail')).toBeTruthy();
+});
+test('status filters keep whole chains, while agent and range filters precede grouping', async () => {
+  loadChains();
+  const issue = chainGraph.runs.find((r) => r.id === 'issue')!;
+  state.graph!.runs.push({ ...issue, id: 'issue-failed', status: 'failed', startedAt: minutes(3) });
+  await render(app());
+  await filtered('failed', ['issue-failed', 'issue']);
+  await filtered('running', ['follow-up', 'review', 'opened']);
+  await fireEvent.press(screen.getByTestId('runs-agent'));
+  await fireEvent.press(screen.getByTestId('runs-agent-builder'));
+  expect(screen.getByTestId('run-group-wardby/wardby-mobile#64')).toHaveTextContent(
+    /2 runs · \$1.53/,
+  );
+  await filtered('all', ['follow-up', 'opened']);
+  await fireEvent.press(screen.getByTestId('runs-agent'));
+  await fireEvent.press(screen.getByTestId('runs-agent-reviewer'));
+  expect(screen.queryByTestId('run-group-wardby/wardby-mobile#64')).toBeNull();
+  expect(screen.getByTestId('run-row-review')).toHaveTextContent(/wardby-mobile#64 review/);
+  await fireEvent.press(screen.getByTestId('runs-agent'));
+  await fireEvent.press(screen.getByTestId('runs-agent-all'));
+  await fireEvent.press(screen.getByTestId('runs-range'));
+  await fireEvent.press(screen.getByTestId('runs-range-1h'));
+  expect(screen.getByTestId('run-group-wardby/wardby-mobile#64')).toHaveTextContent(
+    /2 runs · \$0.71/,
+  );
+});
+
+test('issue headings without URLs are headers and live updates change chain state', async () => {
+  const issue = chainGraph.runs.find((r) => r.id === 'issue')!;
+  const trigger: Run['trigger'] = {
+    kind: 'issue',
+    provider: 'linear',
+    issueKey: 'MOB-7',
+    url: null,
+  };
+  state.graph = graphOf([
+    { ...issue, trigger },
+    { ...issue, id: 'issue-2', trigger, status: 'running', startedAt: minutes(2) },
+  ]);
+  await render(app());
+  const heading = screen.getByTestId('run-group-issue:MOB-7');
+  expect(heading).toHaveProp('accessibilityRole', 'header');
+  expect(heading).toHaveProp('accessibilityLabel', 'Issue MOB-7, Running, 2 runs, $0.24');
+  expect(heading.props.onPress).toBeUndefined();
+  await setLive({ graph: graphOf(state.graph!.runs.map((r) => ({ ...r, status: 'succeeded' }))) });
+  expect(screen.getByTestId('run-group-state-issue:MOB-7')).toHaveTextContent('Done');
+});
+
+// The step frames of a recorded stream, as [runId, steps] pairs for store.merge.
+const stepFrames = (stream: string, runId?: string) =>
+  new SseParser()
+    .push(stream)
+    .filter((frame) => frame.event === 'step')
+    .map((frame) => stepFromEvent(JSON.parse(frame.data))!)
+    .map((parsed): [string, Step[]] => [runId ?? parsed.runId, [parsed.step]]);
+const [pending, succeeded, said] = stepFrames(stepEvents.stream);
+const rowLabels = () =>
+  screen.queryAllByTestId(/^run-row-/).map((row) => row.props.accessibilityLabel);
+
+test('a running run shows its latest step in place of started and cost', async () => {
+  const steps = fakeStepStore();
+  steps.merge(...pending);
+  steps.merge(...succeeded);
+  steps.merge(...stepFrames(stepEvents.stream, 'done')[1]);
+  state.graph = graphOf([
+    run('run-coding'),
+    run('idle', { startedAt: minutes(10) }),
+    run('done', { status: 'succeeded', startedAt: minutes(20) }),
+  ]);
+  await render(app(steps));
+  const row = screen.getByTestId('run-row-run-coding');
+  expect(row).toHaveTextContent('run-codingRunning✓ Bash: npm test›');
+  expect(row).toHaveProp(
+    'accessibilityLabel',
+    'run-coding, Running, started 5m ago, cost $0.12, now: Bash: npm test, succeeded',
+  );
+  expect(row.props.className).toContain('h-16');
+  expect(screen.getByTestId('run-latest-step-run-coding')).toHaveProp('numberOfLines', 1);
+  expect(screen.getByTestId('run-row-idle')).toHaveTextContent('idleRunning10m ago · $0.12 of $5›');
+  expect(screen.getByTestId('run-row-done')).toHaveTextContent(
+    'doneSucceeded20m ago · $0.12 of $5›',
+  );
+  expect(screen.getByTestId('run-row-done')).toHaveProp(
+    'accessibilityLabel',
+    'done, Succeeded, started 20m ago, cost $0.12',
+  );
+
+  await act(async () => steps.merge(...said));
+  expect(row).toHaveTextContent('run-codingRunning"Tests pass; opening the pull request."›');
+  expect(row.props.accessibilityLabel).toBe(
+    'run-coding, Running, started 5m ago, cost $0.12, now: Agent said: Tests pass; opening the pull request.',
+  );
+  expect(row.props.accessibilityLabel).not.toMatch(/[✓✕…┃]/);
+
+  await setLive({ graph: graphOf([run('run-coding', { status: 'succeeded' })]) });
+  expect(screen.getByTestId('run-row-run-coding')).toHaveTextContent(
+    'run-codingSucceeded5m ago · $0.12 of $5›',
+  );
+  expect(screen.getByTestId('run-row-run-coding')).toHaveProp(
+    'accessibilityLabel',
+    'run-coding, Succeeded, started 5m ago, cost $0.12',
+  );
+  expect(screen.queryByTestId('run-latest-step-run-coding')).toBeNull();
+});
+
+test('a long step stays on one truncated line and the row keeps 64 pt', async () => {
+  const steps = fakeStepStore();
+  const [runId, [step]] = succeeded;
+  steps.merge(runId, [{ ...step, summary: 'npm test -- --watch=false '.repeat(20) }]);
+  state.graph = graphOf([run('run-coding')]);
+  await render(app(steps));
+  expect(screen.getByTestId('run-row-run-coding').props.className).toContain('h-16');
+  const line = screen.getByTestId('run-latest-step-run-coding');
+  expect(line).toHaveProp('numberOfLines', 1);
+  expect(line).toHaveProp('ellipsizeMode', 'tail');
+});
+
+test('rows inside PR chain groups show their latest step too', async () => {
+  loadChains();
+  const steps = fakeStepStore();
+  steps.merge(...stepFrames(stepEvents.stream, 'follow-up')[1]);
+  await render(app(steps));
+  expect(screen.getByTestId('run-group-wardby/wardby-mobile#64')).toHaveProp(
+    'accessibilityLabel',
+    'Pull request wardby-mobile#64, Running, 3 runs, $1.84, opens in browser',
+  );
+  const row = screen.getByTestId('run-row-follow-up');
+  expect(row).toHaveTextContent(/✓ Bash: npm test›$/);
+  expect(row.props.accessibilityLabel).toMatch(/, follow-up, now: Bash: npm test, succeeded$/);
+  expect(screen.getByTestId('run-row-review')).toHaveTextContent(/· review/);
+});
+
+test('a burst of step events re-renders only that row, once per flush window', async () => {
+  const steps = createStepStore({ flushMs: 500 });
+  state.graph = graphOf([run('run-coding'), run('other', { startedAt: minutes(10) })]);
+  await render(app(steps));
+  const coding = state.graph.runs[0].startedAt;
+  const other = state.graph.runs[1].startedAt;
+  mockRowRenders.length = 0;
+  await act(async () => {
+    for (const frame of stepFrames(stepBurst.stream)) steps.merge(...frame);
+  });
+  expect(mockRowRenders).toEqual([]);
+  await act(async () => {
+    jest.advanceTimersByTime(500);
+  });
+  expect(mockRowRenders.filter((iso) => iso === coding)).toHaveLength(1);
+  expect(mockRowRenders.filter((iso) => iso === other)).toHaveLength(0);
+  expect(screen.getByTestId('run-row-run-coding')).toHaveTextContent(
+    /✓ Bash: npm test -- step 200›$/,
+  );
+});
+
+test.each([
+  ['no step store', () => undefined],
+  ['an empty step store', () => fakeStepStore()],
+  ['a steps-off stream', () => fakeStepStore(stepsOff.stream)],
+])('with %s every row is exactly as without steps', async (_, steps) => {
+  state.graph = graphOf(graphFixture.runs.map((r) => ({ ...(r as Run), parentRunId: null })));
+  await render(app(steps()));
+  expect(rowLabels()).toEqual([
+    'Planner, Running, started 2h ago, cost $0.12',
+    'Builder, Running, started 2h ago, cost $0.12',
+    'Planner, Succeeded, started 2h ago, cost $0.12',
+  ]);
+  expect(screen.queryAllByTestId(/^run-latest-step-/)).toEqual([]);
+  for (const row of screen.queryAllByTestId(/^run-row-/))
+    expect(row).toHaveTextContent(/^(Planner|Builder)(Running|Succeeded)2h ago · \$0.12 of \$5›$/);
+});
+
+test('at fontScale 2 and 320 pt the step line stays one truncated line in a 64 pt row', async () => {
+  jest.spyOn(ReactNative, 'useWindowDimensions').mockReturnValue({
+    width: 320,
+    height: 568,
+    scale: 2,
+    fontScale: 2,
+  });
+  const steps = fakeStepStore();
+  const [runId, [step]] = succeeded;
+  steps.merge(runId, [
+    { ...step, status: 'exit 127', summary: 'npm test -- --watch=false '.repeat(20) },
+  ]);
+  steps.merge(...stepFrames(stepEvents.stream, 'idle')[2]);
+  state.graph = graphOf([run('run-coding'), run('idle', { startedAt: minutes(10) })]);
+  await render(app(steps));
+  for (const id of ['run-coding', 'idle']) {
+    const row = screen.getByTestId(`run-row-${id}`);
+    expect(row.props.className.split(' ')).toContain('h-16');
+    expect(row.props.accessibilityLabel).not.toMatch(/[✓✕…┃]/);
+    const line = screen.getByTestId(`run-latest-step-${id}`);
+    expect(line).toHaveProp('numberOfLines', 1);
+    expect(line).toHaveProp('ellipsizeMode', 'tail');
+    expect(line.parent?.props.className).toContain('flex-1 min-w-0');
+  }
+  expect(screen.getByTestId('run-row-run-coding').props.accessibilityLabel).toMatch(
+    /, now: Bash: (npm test -- --watch=false )+, exited with code 127$/,
+  );
+  expect(screen.getByTestId('run-latest-step-run-coding')).toHaveTextContent(/^exit 127 Bash:/);
+});

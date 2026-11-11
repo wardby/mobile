@@ -1,0 +1,65 @@
+{
+  "id": "run-coding",
+  "parentRunId": "run-parent",
+  "agentId": "builder",
+  "agentName": "Builder",
+  "agentKind": "coding",
+  "model": "planning-model",
+  "codingProvider": "claude",
+  "nativeExecutionMode": null,
+  "warmWorkerName": null,
+  "status": "succeeded",
+  "trigger": {
+    "kind": "subagent"
+  },
+  "turns": 3,
+  "tokensIn": 1200,
+  "tokensOut": 400,
+  "costUsd": 0.12,
+  "budgetUsd": 5,
+  "startedAt": "2026-10-01T10:00:00.000Z",
+  "finishedAt": "2026-10-01T10:06:00.000Z",
+  "heartbeatAt": "2026-10-01T10:00:00.000Z",
+  "outcomes": [],
+  "declaredServices": [
+    {
+      "name": "postgres",
+      "version": "16"
+    }
+  ],
+  "services": [
+    {
+      "name": "postgres",
+      "state": "ready",
+      "attempts": 1,
+      "reason": null,
+      "readyAt": "2026-10-01T10:00:00.000Z",
+      "failedAt": null,
+      "createdAt": "2026-10-01T10:00:00.000Z"
+    }
+  ],
+  "error": null,
+  "finalText": null,
+  "childRunIds": ["run-child"],
+  "coding": {
+    "provider": "github",
+    "repository": "team/project",
+    "baseRef": "main",
+    "headRef": "fix-search",
+    "queuedAt": null,
+    "failureCategory": null,
+    "services": [
+      {
+        "name": "postgres",
+        "version": "16",
+        "image": "postgres:16",
+        "envNames": []
+      }
+    ]
+  },
+  "steps": [],
+  "stepsOmitted": 0,
+  "stepsDropped": 0,
+  "request": "## Search returns stale results\n\nSearching right after an edit shows the old title. See [the report](https://example.test/issues/12) for steps.\n\nRepro:\n1. Edit a run title.\n2. Run `npm run search -- --fresh` straight away.\n3. The old title is listed.\n\nExpected: the new title.\nActual: the old title, until the cache expires.",
+  "requestTruncated": false
+}

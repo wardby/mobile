@@ -23,7 +23,7 @@ const config: ExpoConfig = {
       monochromeImage: './assets/images/monochrome-icon.png',
     },
   },
-  web: { favicon: './assets/images/favicon.png' },
+  web: { favicon: './assets/images/favicon.png', output: 'static' },
   plugins: [
     'expo-router',
     'expo-status-bar',

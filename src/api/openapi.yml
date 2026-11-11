@@ -2,7 +2,7 @@
 openapi: 3.1.0
 info:
   title: wardby admin viewer API
-  version: 0.6.0
+  version: 0.9.6
   description: "Read-only admin API behind the wardby viewer: graph, run detail, infrastructure info and a live event stream. Response objects may gain new fields in later releases; clients should ignore unknown fields. See docs/viewer-api.md for the prose contract."
 servers:
   - url: https://{host}
@@ -122,7 +122,7 @@ paths:
       operationId: getRun
       summary: Run detail
       description: |-
-        Full detail for one run, including final text.
+        Full detail for one run, including final text and its newest steps.
 
         Requires a bearer token with the `admin:view` scope, held by a caller with the admin role.
       security:
@@ -297,6 +297,7 @@ paths:
         - `retry: 3000`: suggested client reconnect delay in milliseconds.
         - `event: hello`: sent first. Data is `{"connected": <bool>}`, whether the server's live-event connection is up.
         - `event: run`, `event: service`, `event: outcome`: a run, coding-run service, or outcome changed. Each carries an `id:` line. Payloads match the `viewer-event` schema (see `x-event-schema`).
+        - `event: step`: a run recorded a step, or a step's status arrived. Carries an `id:` line. Data: the step's `seq`, `stepKind` (`tool` or `said`), `tool`, `summary` (redacted when it was recorded), `status` and `at`, never tool output.
         - `event: status`: the server's live-event connection changed. Data is `{"connected": <bool>}`.
         - `event: resync`: the live-event connection is up (again). Events may have been missed: refetch the graph.
         - `: ping`: comment sent every 15 seconds to keep the connection open.
@@ -1107,6 +1108,50 @@ components:
           type: array
           items:
             type: string
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              seq:
+                type: integer
+              at:
+                type: string
+              kind:
+                type: string
+                enum:
+                  - tool
+                  - said
+              tool:
+                type:
+                  - string
+                  - "null"
+              summary:
+                type: string
+              status:
+                type:
+                  - string
+                  - "null"
+            required:
+              - seq
+              - at
+              - kind
+              - tool
+              - summary
+              - status
+            additionalProperties: false
+        stepsOmitted:
+          type: integer
+        stepsDropped:
+          type: integer
+        request:
+          description: "Untrusted text: what the run was asked to do (its task from a caller, webhook, issue or lead), without the agent's standing instructions. The agent's secret values and token-shaped values are masked. At most the first 8,000 characters; see requestTruncated. Null when the run has none or it can't be checked for secrets. Absent from servers older than 0.9.6."
+          type:
+            - string
+            - "null"
+        requestTruncated:
+          description: True when request is only the first 8,000 characters of a longer text.
+          type: boolean
         coding:
           anyOf:
             - type: object
@@ -1184,6 +1229,9 @@ components:
         - error
         - finalText
         - childRunIds
+        - steps
+        - stepsOmitted
+        - stepsDropped
         - coding
       additionalProperties: false
     viewer-event:
@@ -1281,6 +1329,42 @@ components:
             - kind
             - runId
             - source
+          additionalProperties: false
+        - type: object
+          properties:
+            kind:
+              type: string
+              const: step
+            runId:
+              type: string
+            seq:
+              type: integer
+            stepKind:
+              type: string
+              enum:
+                - tool
+                - said
+            tool:
+              type:
+                - string
+                - "null"
+            summary:
+              type: string
+            status:
+              type:
+                - string
+                - "null"
+            at:
+              type: string
+          required:
+            - kind
+            - runId
+            - seq
+            - stepKind
+            - tool
+            - summary
+            - status
+            - at
           additionalProperties: false
     infra-info:
       type: object

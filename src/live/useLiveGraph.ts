@@ -14,6 +14,8 @@ import { createApiClient } from '../api/client';
 import type { components } from '../api/schema';
 import { session, useSession } from '../auth/session';
 import type { SseFrame } from './sse';
+import { createStepStore, StepStoreProvider, type StepStore } from './stepStore';
+import { stepFromEvent } from './steps';
 import { openEventStream, type StreamFetch } from './stream';
 
 type Graph = components['schemas']['graph-snapshot'];
@@ -27,6 +29,8 @@ export type LiveGraphState = {
   status: LiveStatus;
   lastUpdated: Date | null;
   resyncVersion?: number;
+  // Bumped after each graph load that follows a reconnect: events may be missed.
+  loadVersion?: number;
   range?: TimeRange;
 };
 export type LiveGraphOptions = {
@@ -39,6 +43,7 @@ export type LiveGraphOptions = {
   fetch?: StreamFetch;
   onUnauthorized?: () => void;
   random?: () => number;
+  steps?: StepStore;
 };
 
 const defaultRetry = 3000;
@@ -51,6 +56,7 @@ const jitter = 0.2;
 // apply events on top. Refetch on every resync and every reconnect.
 export function createLiveGraph(options: LiveGraphOptions) {
   const random = options.random ?? Math.random;
+  const steps = options.steps ?? createStepStore();
   let state: LiveGraphState = {
     graph: null,
     status: 'connecting',
@@ -69,6 +75,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
   let load = 0;
   let buffered: ViewerEvent[] | null = null;
   let refreshPending = false;
+  let missed = false;
 
   const update = (next: Partial<LiveGraphState>) => {
     state = { ...state, ...next };
@@ -83,6 +90,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
     load++;
     buffered = null;
     refreshPending = false;
+    steps.pause();
   }
   function connect() {
     disconnect();
@@ -116,6 +124,7 @@ export function createLiveGraph(options: LiveGraphOptions) {
   function reconnect() {
     if (openedAt !== null && Date.now() - openedAt >= stableAfter) failures = 0;
     disconnect();
+    missed = true;
     if (failures >= maxRetries) {
       update({ status: 'offline' });
       return;
@@ -133,6 +142,8 @@ export function createLiveGraph(options: LiveGraphOptions) {
     }
     const current = ++load;
     buffered = [];
+    // Runs first seen during this load may be missing from its graph: keep them.
+    const held = steps.runIds();
     let graph: Graph;
     try {
       graph = await options.client.getGraph({ since: state.range ?? '24h', limit: 500 });
@@ -144,7 +155,14 @@ export function createLiveGraph(options: LiveGraphOptions) {
     if (current !== load) return;
     const events = buffered ?? [];
     buffered = null;
-    update({ graph, lastUpdated: new Date() });
+    if (missed) {
+      missed = false;
+      update({ graph, lastUpdated: new Date(), loadVersion: (state.loadVersion ?? 0) + 1 });
+    } else update({ graph, lastUpdated: new Date() });
+    steps.prune(
+      graph.runs.map((run) => run.id),
+      held,
+    );
     events.forEach(apply);
     if (refreshPending) {
       refreshPending = false;
@@ -161,6 +179,10 @@ export function createLiveGraph(options: LiveGraphOptions) {
     if (frame.event === 'hello' || frame.event === 'status') {
       const connected = (data as { connected?: unknown } | null)?.connected === true;
       update({ status: connected ? 'live' : 'reconnecting' });
+    } else if (frame.event === 'step') {
+      // Steps live in their own store: never touch the graph or load it.
+      const parsed = stepFromEvent(data);
+      if (parsed) steps.merge(parsed.runId, [parsed.step]);
     } else if (frame.event === 'resync') {
       update({ resyncVersion: (state.resyncVersion ?? 0) + 1 });
       void refresh();
@@ -236,12 +258,14 @@ export function createLiveGraph(options: LiveGraphOptions) {
     if (running) return;
     running = true;
     paused = false;
+    missed = false;
     failures = 0;
     update({ status: 'connecting' });
     appState = AppState.addEventListener('change', (next) => {
       if (!running) return;
       if (next === 'background' && !paused) {
         paused = true;
+        missed = true;
         disconnect();
       } else if (next === 'active' && paused) {
         paused = false;
@@ -272,12 +296,14 @@ export function createLiveGraph(options: LiveGraphOptions) {
     appState?.remove();
     appState = null;
     disconnect();
+    steps.clear();
   }
   return {
     start,
     setRange,
     close,
     refresh,
+    steps,
     getSnapshot: () => state,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
@@ -327,7 +353,11 @@ export function LiveGraphProvider({
     store.start();
     return store.close;
   }, [store]);
-  return createElement(LiveGraphContext.Provider, { value: store }, children);
+  return createElement(
+    LiveGraphContext.Provider,
+    { value: store },
+    createElement(StepStoreProvider, { store: store?.steps ?? null }, children),
+  );
 }
 
 export function useLiveGraph() {

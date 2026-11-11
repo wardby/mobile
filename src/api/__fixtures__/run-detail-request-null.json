@@ -1,0 +1,114 @@
+{
+  "id": "run-coding",
+  "parentRunId": "run-parent",
+  "agentId": "builder",
+  "agentName": "Builder",
+  "agentKind": "coding",
+  "model": "planning-model",
+  "codingProvider": "claude",
+  "nativeExecutionMode": null,
+  "warmWorkerName": null,
+  "status": "running",
+  "trigger": {
+    "kind": "subagent"
+  },
+  "turns": 3,
+  "tokensIn": 1200,
+  "tokensOut": 400,
+  "costUsd": 0.12,
+  "budgetUsd": 5,
+  "startedAt": "2026-10-01T10:00:00.000Z",
+  "finishedAt": null,
+  "heartbeatAt": "2026-10-01T10:00:00.000Z",
+  "outcomes": [],
+  "declaredServices": [
+    {
+      "name": "postgres",
+      "version": "16"
+    }
+  ],
+  "services": [
+    {
+      "name": "postgres",
+      "state": "ready",
+      "attempts": 1,
+      "reason": null,
+      "readyAt": "2026-10-01T10:00:00.000Z",
+      "failedAt": null,
+      "createdAt": "2026-10-01T10:00:00.000Z"
+    }
+  ],
+  "error": null,
+  "finalText": null,
+  "childRunIds": ["run-child"],
+  "coding": {
+    "provider": "github",
+    "repository": "team/project",
+    "baseRef": "main",
+    "headRef": "fix-search",
+    "queuedAt": null,
+    "failureCategory": null,
+    "services": [
+      {
+        "name": "postgres",
+        "version": "16",
+        "image": "postgres:16",
+        "envNames": []
+      }
+    ]
+  },
+  "steps": [
+    {
+      "seq": 13,
+      "at": "2026-10-01T10:01:00.000Z",
+      "kind": "tool",
+      "tool": "Read",
+      "summary": "src/live/stream.ts",
+      "status": "ok"
+    },
+    {
+      "seq": 14,
+      "at": "2026-10-01T10:01:30.000Z",
+      "kind": "said",
+      "tool": null,
+      "summary": "I'll run the tests next.",
+      "status": null
+    },
+    {
+      "seq": 15,
+      "at": "2026-10-01T10:02:00.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm run lint",
+      "status": "exit 1"
+    },
+    {
+      "seq": 16,
+      "at": "2026-10-01T10:03:00.000Z",
+      "kind": "tool",
+      "tool": "Edit",
+      "summary": "app/runs/[id].tsx",
+      "status": "error"
+    },
+    {
+      "seq": 17,
+      "at": "2026-10-01T10:04:00.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "echo **bold** [link](https://example.test/x)",
+      "status": "ok"
+    },
+    {
+      "seq": 18,
+      "at": "2026-10-01T10:05:00.000Z",
+      "kind": "tool",
+      "tool": "Bash",
+      "summary": "npm test",
+      "status": null
+    }
+  ],
+  "stepsOmitted": 12,
+  "stepsDropped": 0,
+  "request": null,
+  "requestTruncated": false
+}

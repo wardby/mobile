@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { AppState, Text, type AppStateStatus } from 'react-native';
 import graphFixture from '../../src/api/__fixtures__/graph.json';
 import runFixture from '../../src/api/__fixtures__/run-detail.json';
+import preStepsRunFixture from '../../src/api/__fixtures__/run-detail-pre-0.9.json';
 import type { components } from '../../src/api/schema';
 import { useSession } from '../../src/auth/session';
 import {
@@ -11,7 +12,11 @@ import {
   useLiveGraph,
   type LiveGraphOptions,
 } from '../../src/live/useLiveGraph';
-import { baseUrl, fakeStream, flush, type FakeStream } from './fakes';
+import { createStepStore, useStepStore, type StepStore } from '../../src/live/stepStore';
+import stepBurst from '../fixtures/step-burst.json';
+import stepEvents from '../fixtures/step-events.json';
+import stepsOffEvents from '../fixtures/events-steps-off.json';
+import { baseUrl, fakeStepStore, fakeStream, flush, type FakeStream } from './fakes';
 
 type Graph = components['schemas']['graph-snapshot'];
 type RunDetail = components['schemas']['run-detail'];
@@ -257,6 +262,33 @@ test('an outcome event refetches that run and merges it', async () => {
   expect(merged.outcomes).toEqual([outcome]);
   expect(merged).not.toHaveProperty('coding');
 });
+test('an outcome refetch keeps run detail steps out of the graph', async () => {
+  const { result } = await live();
+  latest().push(frame('outcome', { kind: 'outcome', runId: 'run-coding', source: 'pull_request' }));
+  await settle();
+  expect(options.client.getRun).toHaveBeenCalledWith('run-coding');
+  const merged = run('run-coding', result.current.graph!);
+  expect(Object.keys(merged).sort()).toEqual(Object.keys(run('run-coding', graph())).sort());
+  expect(merged).not.toHaveProperty('steps');
+  expect(merged).not.toHaveProperty('stepsOmitted');
+  expect(merged).not.toHaveProperty('stepsDropped');
+});
+test('an outcome refetch from a server before 0.9 merges as before', async () => {
+  const outcome = { kind: 'pull_request', provider: 'github', repository: 'team/project' };
+  (options.client.getRun as jest.Mock).mockResolvedValueOnce({
+    ...structuredClone(preStepsRunFixture),
+    status: 'succeeded',
+    outcomes: [outcome],
+  });
+  const { result } = await live();
+  latest().push(frame('outcome', { kind: 'outcome', runId: 'run-coding', source: 'pull_request' }));
+  await settle();
+  const merged = run('run-coding', result.current.graph!);
+  expect(merged.status).toBe('succeeded');
+  expect(merged.outcomes).toEqual([outcome]);
+  expect(merged).not.toHaveProperty('coding');
+  expect(merged).not.toHaveProperty('steps');
+});
 test('resync refetches and replaces the graph', async () => {
   const { result } = await live();
   const next = { ...graph(), runs: [run('run-parent', graph())] };
@@ -365,16 +397,63 @@ test('the back-off resets after a stable connection', async () => {
   expect(fetch).toHaveBeenCalledTimes(4);
 });
 test('background closes the stream and foreground reopens it and refetches', async () => {
-  await live();
+  const steps = createStepStore();
+  options.steps = steps;
+  const pause = jest.spyOn(steps, 'pause');
+  const listener = jest.fn();
+  steps.subscribeSteps('run-coding', listener);
+  const { result } = await live();
+  latest().push(stepEvents.stream);
+  await settle();
+  expect(listener).not.toHaveBeenCalled();
+  pause.mockClear();
   await act(async () => appState('background'));
   expect(signals[0].aborted).toBe(true);
   expect(streams[0].cancelled).toBe(true);
+  expect(pause).toHaveBeenCalledTimes(1);
+  expect(listener).toHaveBeenCalledTimes(1);
+  expect(steps.getSteps('run-coding').map((step) => step.seq)).toEqual([18, 19]);
   await advance(60000);
+  expect(listener).toHaveBeenCalledTimes(1);
   expect(fetch).toHaveBeenCalledTimes(1);
+  expect(result.current.loadVersion ?? 0).toBe(0);
   await act(async () => appState('active'));
   await settle();
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(log).toEqual(['stream', 'graph', 'stream', 'graph']);
+  expect(result.current.loadVersion).toBe(1);
+  expect(steps.getSteps('run-coding').map((step) => step.seq)).toEqual([18, 19]);
+});
+test('the first graph load leaves loadVersion unset', async () => {
+  const { result } = await live();
+  expect(options.client.getGraph).toHaveBeenCalledTimes(1);
+  expect(result.current.graph).not.toBeNull();
+  expect(result.current.loadVersion ?? 0).toBe(0);
+});
+test('a drop and reconnect bumps loadVersion once the graph reloads', async () => {
+  let finish: (value: Graph) => void = () => {};
+  const { result } = await live();
+  latest().end();
+  await settle();
+  expect(result.current.loadVersion ?? 0).toBe(0);
+  (options.client.getGraph as jest.Mock).mockImplementationOnce(
+    () => new Promise((resolve) => (finish = resolve)),
+  );
+  await advance(3000);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(result.current.loadVersion ?? 0).toBe(0);
+  finish(graph());
+  await settle();
+  expect(result.current.loadVersion).toBe(1);
+  await act(() => result.current.refresh());
+  expect(result.current.loadVersion).toBe(1);
+});
+test('setRange does not change loadVersion', async () => {
+  const { result } = await live();
+  await act(() => result.current.setRange('7d'));
+  await settle();
+  expect(options.client.getGraph).toHaveBeenLastCalledWith({ since: '7d', limit: 500 });
+  expect(result.current.loadVersion ?? 0).toBe(0);
 });
 test('unmount closes the stream', async () => {
   const { unmount } = await live();
@@ -460,4 +539,188 @@ test('persists changes, reloads, and retains range on resync and reconnect with 
   await unmount();
   const next = await live();
   expect(next.result.current.range).toBe('7d');
+});
+
+describe('step events', () => {
+  let steps: StepStore;
+  const seqs = (runId: string) => steps.getSteps(runId).map((step) => step.seq);
+  const stepFrame = (runId: string, seq: number) =>
+    frame('step', {
+      kind: 'step',
+      runId,
+      seq,
+      stepKind: 'tool',
+      tool: 'Bash',
+      summary: `step ${seq}`,
+      status: null,
+      at: '2026-10-01T10:00:00.000Z',
+    });
+  beforeEach(() => {
+    steps = fakeStepStore();
+    options.steps = steps;
+  });
+
+  test('update the step store only, keeping the graph object', async () => {
+    const { result } = await live();
+    const before = result.current;
+    latest().push(stepEvents.stream);
+    await settle();
+    expect(seqs('run-coding')).toEqual([18, 19]);
+    expect(steps.getSteps('run-coding')[0]?.status).toBe('ok');
+    expect(result.current.graph).toBe(before.graph);
+    expect(result.current.lastUpdated).toBe(before.lastUpdated);
+    expect(options.client.getGraph).toHaveBeenCalledTimes(1);
+    expect(options.client.getRun).not.toHaveBeenCalled();
+  });
+  test('a step for a run not in the graph is kept and loads nothing', async () => {
+    await live();
+    latest().push(stepFrame('run-new', 1));
+    await settle();
+    expect(seqs('run-new')).toEqual([1]);
+    expect(options.client.getGraph).toHaveBeenCalledTimes(1);
+  });
+  test('a malformed step frame is ignored', async () => {
+    const { result } = await live();
+    latest().push(frame('step', { kind: 'step', runId: 'run-coding', seq: 'x' }));
+    latest().push('event: step\ndata: {not json\n\n');
+    await settle();
+    expect(seqs('run-coding')).toEqual([]);
+    expect(result.current.status).toBe('live');
+  });
+  test('steps survive a resync mid-sequence', async () => {
+    await live();
+    latest().push(stepFrame('run-coding', 1));
+    latest().push(frame('resync', {}));
+    latest().push(stepFrame('run-coding', 2));
+    await settle();
+    expect(options.client.getGraph).toHaveBeenCalledTimes(2);
+    expect(seqs('run-coding')).toEqual([1, 2]);
+  });
+  test('steps survive a dropped stream and the reconnect', async () => {
+    await live();
+    latest().push(stepEvents.stream);
+    await settle();
+    latest().end();
+    await settle();
+    expect(seqs('run-coding')).toEqual([18, 19]);
+    await advance(3000);
+    expect(options.client.getGraph).toHaveBeenCalledTimes(2);
+    expect(seqs('run-coding')).toEqual([18, 19]);
+  });
+  test('steps survive going to the background and back', async () => {
+    await live();
+    latest().push(stepEvents.stream);
+    await settle();
+    await act(async () => appState('background'));
+    expect(seqs('run-coding')).toEqual([18, 19]);
+    await act(async () => appState('active'));
+    await settle();
+    expect(seqs('run-coding')).toEqual([18, 19]);
+  });
+  test('a graph load drops steps for runs missing from the graph', async () => {
+    await live();
+    latest().push(stepFrame('run-coding', 1));
+    latest().push(stepFrame('run-gone', 1));
+    await settle();
+    expect(seqs('run-gone')).toEqual([1]);
+    latest().push(frame('resync', {}));
+    await settle();
+    expect(seqs('run-gone')).toEqual([]);
+    expect(seqs('run-coding')).toEqual([1]);
+  });
+  test('a graph load keeps steps for runs first seen while it was in flight', async () => {
+    await live();
+    latest().push(stepFrame('run-gone', 1));
+    await settle();
+    let finish: (value: Graph) => void = () => {};
+    (options.client.getGraph as jest.Mock).mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve)),
+    );
+    latest().push(frame('resync', {}));
+    await settle();
+    latest().push(stepFrame('run-new', 1));
+    latest().push(stepFrame('run-coding', 1));
+    await settle();
+    finish(graph());
+    await settle();
+    expect(seqs('run-new')).toEqual([1]);
+    expect(seqs('run-coding')).toEqual([1]);
+    expect(seqs('run-gone')).toEqual([]);
+    // The next load started after the run was seen, so it prunes as usual.
+    latest().push(frame('resync', {}));
+    await settle();
+    expect(options.client.getGraph).toHaveBeenCalledTimes(3);
+    expect(seqs('run-new')).toEqual([]);
+  });
+  test('a burst of step events notifies once per flush window', async () => {
+    steps = createStepStore();
+    options.steps = steps;
+    const coding = jest.fn();
+    const other = jest.fn();
+    steps.subscribeSteps('run-coding', coding);
+    steps.subscribeSteps('run-parent', other);
+    await live();
+    latest().push(stepBurst.stream);
+    await settle();
+    expect(coding).not.toHaveBeenCalled();
+    await advance(500);
+    expect(coding).toHaveBeenCalledTimes(1);
+    expect(other).not.toHaveBeenCalled();
+    expect(seqs('run-coding')).toHaveLength(100);
+    expect(seqs('run-coding')[99]).toBe(200);
+  });
+  test('sign-out clears all steps', async () => {
+    const { rerender } = await live();
+    latest().push(stepEvents.stream);
+    await settle();
+    expect(seqs('run-coding')).toEqual([18, 19]);
+    auth = { status: 'signedOut', host: null };
+    await rerender({});
+    await settle();
+    expect(seqs('run-coding')).toEqual([]);
+  });
+  test('unmount clears all steps', async () => {
+    const { unmount } = await live();
+    latest().push(stepEvents.stream);
+    await settle();
+    expect(seqs('run-coding')).toEqual([18, 19]);
+    await act(async () => unmount());
+    expect(seqs('run-coding')).toEqual([]);
+  });
+  test('a server with steps off leaves the store empty with no error', async () => {
+    const { result } = await mount();
+    latest().push(stepsOffEvents.stream);
+    await settle();
+    expect(seqs('run-coding')).toEqual([]);
+    expect(result.current.status).toBe('live');
+    expect(result.current.graph).not.toBeNull();
+  });
+  test('the provider exposes the step store it was given', async () => {
+    let seen: StepStore | null = null;
+    const Probe = () => {
+      seen = useStepStore();
+      return null;
+    };
+    await render(
+      <LiveGraphProvider options={options}>
+        <Probe />
+      </LiveGraphProvider>,
+    );
+    await settle();
+    expect(seen).toBe(steps);
+  });
+  test('the provider exposes no step store when signed out', async () => {
+    auth = { status: 'signedOut', host: null };
+    let seen: StepStore | null | undefined;
+    const Probe = () => {
+      seen = useStepStore();
+      return null;
+    };
+    await render(
+      <LiveGraphProvider options={options}>
+        <Probe />
+      </LiveGraphProvider>,
+    );
+    expect(seen).toBeNull();
+  });
 });

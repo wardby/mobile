@@ -1,8 +1,20 @@
 import { theme } from '../../components/ui/theme';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { Profiler, type ReactNode } from 'react';
+import * as ReactNative from 'react-native';
 import { Linking } from 'react-native';
 import RunDetail from '../../app/runs/[id]';
 import fixture from '../../src/api/__fixtures__/run-detail.json';
+import stepsOff from '../../src/api/__fixtures__/run-detail-steps-off.json';
+import pre09 from '../../src/api/__fixtures__/run-detail-pre-0.9.json';
+import dropped from '../../src/api/__fixtures__/run-detail-dropped.json';
+import many from '../../src/api/__fixtures__/run-detail-many.json';
+import requestTruncated from '../../src/api/__fixtures__/run-detail-request-truncated.json';
+import requestNull from '../../src/api/__fixtures__/run-detail-request-null.json';
+import events from '../fixtures/step-events.json';
+import { fakeStepStore } from '../live/fakes';
+import { StepStoreProvider, type StepStore } from '../../src/live/stepStore';
+import type { Step } from '../../src/live/steps';
 import graphFixture from '../../src/api/__fixtures__/graph.json';
 import { ApiError } from '../../src/api/client';
 import { session } from '../../src/auth/session';
@@ -28,9 +40,20 @@ jest.mock('../../src/live/useLiveGraph', () => ({ useLiveGraph: jest.fn() }));
 const getRun = jest.fn();
 let detail: Detail;
 let live: ReturnType<typeof useLiveGraph>;
+let store: StepStore;
+let renders = 0;
 const now = Date.parse('2026-10-01T10:07:12Z');
-const setup = async () => render(<RunDetail />);
+const wrapper = ({ children }: { children: ReactNode }) => (
+  <StepStoreProvider store={store}>
+    <Profiler id="run-detail" onRender={() => renders++}>
+      {children}
+    </Profiler>
+  </StepStoreProvider>
+);
+const setup = async () => render(<RunDetail />, { wrapper });
 beforeEach(() => {
+  store = fakeStepStore();
+  renders = 0;
   jest.useFakeTimers({ now });
   jest.clearAllMocks();
   detail = {
@@ -113,6 +136,14 @@ test('loads finished coding detail, all blocks, PR link and expandable plain res
   });
 });
 
+test('run detail content is inset below the translucent iOS header', async () => {
+  await setup();
+  expect(screen.getByTestId('run-detail')).toHaveProp(
+    'contentInsetAdjustmentBehavior',
+    'automatic',
+  );
+});
+
 test('live fields and timer update without fetching; outcomes and resync refetch', async () => {
   detail = { ...detail, status: 'running', finishedAt: null, outcomes: [] };
   live.graph!.runs = [detail];
@@ -159,6 +190,26 @@ test('live fields and timer update without fetching; outcomes and resync refetch
   live = { ...live, resyncVersion: 1 };
   await view.rerender(<RunDetail />);
   expect(getRun).toHaveBeenCalledTimes(3);
+});
+
+test.each([
+  ['running', true],
+  ['pending', true],
+  ['succeeded', false],
+] as const)('a loadVersion change refetches a %s run: %p', async (status, refetches) => {
+  detail = {
+    ...detail,
+    status,
+    finishedAt: status === 'succeeded' ? detail.finishedAt : null,
+    outcomes: [],
+  };
+  live.graph!.runs = [detail];
+  live = { ...live, loadVersion: 0 };
+  const view = await setup();
+  expect(getRun).toHaveBeenCalledTimes(1);
+  live = { ...live, loadVersion: 1 };
+  await view.rerender(<RunDetail />);
+  expect(getRun).toHaveBeenCalledTimes(refetches ? 2 : 1);
 });
 
 test.each([
@@ -422,3 +473,511 @@ test.each([theme.light.tint, theme.dark.tint])(
     expect(open).toHaveBeenCalledWith('https://example.test/docs');
   },
 );
+
+const running = () => ({ ...fixture, status: 'running', finishedAt: null }) as Detail;
+const testIds = (root: string, pattern: RegExp) =>
+  within(screen.getByTestId(root))
+    .queryAllByTestId(pattern)
+    .map((node) => node.props.testID as string);
+const stepIds = () => testIds('run-detail-steps', /^run-step-\d+$/);
+const liveSteps = fakeStepStore(events.stream);
+const mergeEvents = () =>
+  act(async () => {
+    for (const runId of liveSteps.runIds()) store.merge(runId, liveSteps.getSteps(runId));
+  });
+const extraStep = (seq: number) => ({ ...fixture.steps[0], seq }) as Step;
+
+test.each([
+  ['with code', true],
+  ['without code', false],
+])('section order is SPEND, STEPS, CODE, OUTCOMES %s', async (_name, coding) => {
+  detail = { ...running(), ...(coding ? {} : { coding: null }) };
+  await setup();
+  expect(testIds('run-detail', /^run-detail-(spend|steps|code|outcomes)$/)).toEqual([
+    'run-detail-spend',
+    'run-detail-steps',
+    ...(coding ? ['run-detail-code'] : []),
+    'run-detail-outcomes',
+  ]);
+  expect(
+    within(screen.getByTestId('run-detail-steps')).getByRole('header', { name: 'STEPS' }),
+  ).toBeTruthy();
+});
+
+test('a running run shows its steps live, newest first, keyed by seq', async () => {
+  detail = running();
+  await setup();
+  expect(screen.getByTestId('run-detail-steps-live')).toBeTruthy();
+  expect(stepIds()).toEqual([18, 17, 16, 15, 14, 13].map((seq) => `run-step-${seq}`));
+  expect(screen.getByTestId('run-step-18')).toHaveProp(
+    'accessibilityLabel',
+    'Bash: npm test, in progress',
+  );
+  const markdown = screen.getByTestId('run-step-17-text');
+  expect(markdown).toHaveTextContent('Bash: echo **bold** [link](https://example.test/x)');
+  expect(markdown.props.onPress).toBeUndefined();
+  expect(screen.queryByRole('link')).toBeNull();
+  const before = screen.getByTestId('run-step-16');
+  await mergeEvents();
+  expect(stepIds()).toEqual([19, 18, 17, 16, 15, 14, 13].map((seq) => `run-step-${seq}`));
+  expect(screen.getByTestId('run-step-18')).toHaveProp(
+    'accessibilityLabel',
+    'Bash: npm test, succeeded',
+  );
+  expect(screen.getByTestId('run-step-19')).toHaveProp(
+    'accessibilityLabel',
+    'Agent said: Tests pass; opening the pull request.',
+  );
+  expect(screen.getByTestId('run-step-16')).toBe(before);
+  expect(getRun).toHaveBeenCalledTimes(1);
+});
+
+test('a step event for another run does not re-render the screen', async () => {
+  detail = running();
+  await setup();
+  const count = renders;
+  await act(async () => store.merge('run-other', [extraStep(99)]));
+  expect(renders).toBe(count);
+  await act(async () => store.merge('run-coding', [extraStep(99)]));
+  expect(renders).toBeGreaterThan(count);
+  expect(stepIds()[0]).toBe('run-step-99');
+});
+
+test('shows at most the newest 20 steps', async () => {
+  detail = running();
+  await setup();
+  await act(async () =>
+    store.merge(
+      'run-coding',
+      Array.from({ length: 30 }, (_, index) => extraStep(100 + index)),
+    ),
+  );
+  const ids = stepIds();
+  expect(ids).toHaveLength(20);
+  expect(ids[0]).toBe('run-step-129');
+  expect(ids[19]).toBe('run-step-110');
+});
+
+test('a running run with no steps yet is waiting', async () => {
+  detail = { ...running(), steps: [], stepsOmitted: 0, stepsDropped: 0 };
+  await setup();
+  expect(screen.getByTestId('run-detail-steps-waiting')).toHaveTextContent(
+    'Waiting for the first step…',
+  );
+});
+
+test('steps off: a finished run says no steps were recorded, neutrally', async () => {
+  detail = stepsOff as Detail;
+  await setup();
+  expect(screen.getByTestId('run-detail-steps-none')).toHaveTextContent(
+    'No steps recorded for this run.',
+  );
+  expect(screen.getByTestId('run-detail-steps')).not.toHaveTextContent(/Retry|Couldn't/);
+  expect(within(screen.getByTestId('run-detail-steps')).queryByRole('button')).toBeNull();
+});
+
+test.each([
+  ['running', null],
+  ['succeeded', '2026-10-01T10:06:00.000Z'],
+] as const)('a pre-0.9 %s run shows steps as unavailable', async (status, finishedAt) => {
+  detail = { ...(pre09 as unknown as Detail), status, finishedAt };
+  await setup();
+  expect(screen.getByTestId('run-detail-steps-unsupported')).toHaveTextContent(
+    "Steps aren't available on this server",
+  );
+  expect(screen.getByTestId('run-detail-steps')).not.toHaveTextContent(/Retry|Couldn't/);
+  expect(within(screen.getByTestId('run-detail-steps')).queryByRole('button')).toBeNull();
+  expect(screen.getByTestId('run-detail-spend')).toHaveTextContent(/\$0\.12 of \$5\.00/);
+  expect(screen.getByTestId('run-detail-code')).toHaveTextContent(/team\/project/);
+  expect(screen.getByTestId('run-detail-outcomes')).toHaveTextContent(/No outcomes yet\./);
+  await mergeEvents();
+  expect(screen.queryByTestId('run-step-19')).toBeNull();
+});
+
+test('steps show loading while run detail reloads with no steps to show', async () => {
+  detail = { ...running(), steps: [], stepsOmitted: 0, stepsDropped: 0 };
+  const view = await setup();
+  expect(screen.getByTestId('run-detail-steps-waiting')).toBeTruthy();
+  getRun.mockImplementation(() => new Promise(() => {}));
+  live = { ...live, resyncVersion: 1 };
+  await view.rerender(<RunDetail />);
+  expect(screen.getByTestId('run-detail-steps-loading')).toHaveTextContent('Loading steps…');
+  expect(screen.queryByTestId('run-detail-steps-waiting')).toBeNull();
+});
+
+const notes = () => testIds('run-detail-steps', /^run-detail-steps-(omitted|dropped)$/);
+
+test('a finished run shows its fetched steps newest first, with the omitted note', async () => {
+  await setup();
+  expect(screen.getByTestId('run-detail-steps-finished')).toBeTruthy();
+  expect(stepIds()).toEqual([18, 17, 16, 15, 14, 13].map((seq) => `run-step-${seq}`));
+  expect(screen.getByTestId('run-detail-steps-omitted')).toHaveTextContent(
+    '12 earlier steps not shown',
+  );
+  expect(screen.queryByTestId('run-detail-steps-dropped')).toBeNull();
+  expect(screen.queryByTestId('run-detail-steps-more')).toBeNull();
+  expect(within(screen.getByTestId('run-detail-steps')).queryByRole('button')).toBeNull();
+});
+
+test('dropped steps: 20 rows, paging and both notes', async () => {
+  detail = dropped as Detail;
+  await setup();
+  expect(stepIds()).toHaveLength(20);
+  expect(stepIds()[0]).toBe('run-step-74');
+  expect(screen.getByTestId('run-detail-steps-omitted')).toHaveTextContent(
+    '40 earlier steps not shown',
+  );
+  expect(screen.getByTestId('run-detail-steps-dropped')).toHaveTextContent(
+    "5 steps over the server's limit were not recorded",
+  );
+  await fireEvent.press(screen.getByTestId('run-detail-steps-more'));
+  expect(stepIds()).toHaveLength(34);
+  expect(screen.getByTestId('run-detail-steps-more')).toHaveTextContent(/Show fewer/);
+  expect(notes()).toEqual(['run-detail-steps-omitted', 'run-detail-steps-dropped']);
+});
+
+test.each([
+  [1, 0, ['1 earlier step not shown']],
+  [0, 1, ["1 step over the server's limit was not recorded"]],
+  [2, 3, ['2 earlier steps not shown', "3 steps over the server's limit were not recorded"]],
+  [0, 0, []],
+])('omitted %p and dropped %p notes use singular and plural', async (omitted, drop, texts) => {
+  detail = { ...detail, stepsOmitted: omitted, stepsDropped: drop };
+  await setup();
+  expect(notes().map((id) => screen.getByTestId(id).props.children)).toEqual(texts);
+});
+
+test('pages 45 loaded steps 20 at a time, then shows fewer, without fetching', async () => {
+  detail = many as Detail;
+  await setup();
+  const more = () => screen.getByTestId('run-detail-steps-more');
+  expect(stepIds()).toHaveLength(20);
+  expect(stepIds()[0]).toBe('run-step-48');
+  expect(more()).toHaveTextContent(/Show 20 more/);
+  expect(more()).toHaveProp('accessibilityLabel', 'Show 20 more steps, 20 of 45 shown');
+  expect(more()).toHaveProp('accessibilityState', { disabled: false, expanded: false });
+  await fireEvent.press(more());
+  expect(stepIds()).toHaveLength(40);
+  expect(more()).toHaveTextContent(/Show 20 more/);
+  expect(more()).toHaveProp('accessibilityLabel', 'Show 20 more steps, 40 of 45 shown');
+  await fireEvent.press(more());
+  expect(stepIds()).toHaveLength(45);
+  expect(stepIds()[44]).toBe('run-step-4');
+  expect(more()).toHaveTextContent(/Show fewer/);
+  expect(more()).toHaveProp('accessibilityLabel', 'Show fewer steps, 45 of 45 shown');
+  expect(more()).toHaveProp('accessibilityState', { disabled: false, expanded: true });
+  expect(screen.getByTestId('run-detail-steps-omitted')).toHaveTextContent(
+    '3 earlier steps not shown',
+  );
+  await fireEvent.press(more());
+  expect(stepIds()).toHaveLength(20);
+  expect(more()).toHaveTextContent(/Show 20 more/);
+  expect(getRun).toHaveBeenCalledTimes(1);
+});
+
+test('a finished run with no steps but omitted or dropped shows only the notes', async () => {
+  detail = { ...detail, steps: [], stepsOmitted: 3, stepsDropped: 2 };
+  await setup();
+  expect(screen.getByTestId('run-detail-steps-finished')).toBeTruthy();
+  // Only the two notes: no empty list box.
+  expect(screen.getByTestId('run-detail-steps-finished').children).toHaveLength(2);
+  expect(stepIds()).toEqual([]);
+  expect(screen.queryByTestId('run-detail-steps-more')).toBeNull();
+  expect(notes()).toEqual(['run-detail-steps-omitted', 'run-detail-steps-dropped']);
+  expect(screen.getByTestId('run-detail-steps-omitted')).toHaveTextContent(
+    '3 earlier steps not shown',
+  );
+});
+
+test.each([
+  ['steps off', stepsOff as Detail, 'run-detail-steps-none'],
+  [
+    'pre-0.9',
+    { ...(pre09 as unknown as Detail), status: 'succeeded' } as Detail,
+    'run-detail-steps-unsupported',
+  ],
+])('a finished %s run has no notes and no paging control', async (_name, value, testID) => {
+  detail = value;
+  await setup();
+  expect(screen.getByTestId(testID)).toBeTruthy();
+  expect(notes()).toEqual([]);
+  expect(screen.queryByTestId('run-detail-steps-more')).toBeNull();
+});
+
+test('a run that finishes while open keeps merging live steps until the finished fetch', async () => {
+  detail = { ...running(), outcomes: [] };
+  live.graph!.runs = [detail];
+  const view = await setup();
+  let resolve: (value: Detail) => void = () => {};
+  getRun.mockImplementation(() => new Promise<Detail>((done) => (resolve = done)));
+  const finished = {
+    ...detail,
+    status: 'succeeded' as const,
+    finishedAt: new Date(now).toISOString(),
+    outcomes: [
+      { kind: 'issue_comment' as const, provider: 'jira', issueKey: 'A-1', url: null, at: null },
+    ],
+  };
+  live = { ...live, graph: { ...live.graph!, runs: [finished] } };
+  await view.rerender(<RunDetail />);
+  expect(getRun).toHaveBeenCalledTimes(2);
+  // The late status for seq 18 and the last step arrive before the refetch resolves.
+  await mergeEvents();
+  expect(screen.getByTestId('run-step-18')).toHaveProp(
+    'accessibilityLabel',
+    'Bash: npm test, succeeded',
+  );
+  expect(stepIds()[0]).toBe('run-step-19');
+  await act(async () => resolve({ ...finished, steps: fixture.steps } as Detail));
+  expect(screen.getByTestId('run-detail-steps-finished')).toBeTruthy();
+  expect(stepIds()).toEqual([19, 18, 17, 16, 15, 14, 13].map((seq) => `run-step-${seq}`));
+  expect(screen.getByTestId('run-step-18')).toHaveProp(
+    'accessibilityLabel',
+    'Bash: npm test, succeeded',
+  );
+  // After the finished fetch, later step events for the run change nothing.
+  await act(async () =>
+    store.merge('run-coding', [extraStep(99), { ...fixture.steps[5], status: 'error' } as Step]),
+  );
+  expect(stepIds()).toEqual([19, 18, 17, 16, 15, 14, 13].map((seq) => `run-step-${seq}`));
+  expect(screen.getByTestId('run-step-18')).toHaveProp(
+    'accessibilityLabel',
+    'Bash: npm test, succeeded',
+  );
+});
+
+test('a run that finished while disconnected is refetched on reconnect: final steps appear', async () => {
+  detail = { ...running(), outcomes: [] };
+  live.graph!.runs = [detail];
+  live = { ...live, loadVersion: 0 };
+  const view = await setup();
+  expect(getRun).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId('run-detail-steps-live')).toBeTruthy();
+  const finishedAt = new Date(now).toISOString();
+  detail = {
+    ...detail,
+    status: 'succeeded',
+    finishedAt,
+    steps: [
+      ...fixture.steps.slice(0, 5),
+      { ...fixture.steps[5], status: 'ok' },
+      { ...fixture.steps[0], seq: 19, tool: 'Bash', summary: 'gh pr create', status: 'ok' },
+    ],
+  } as Detail;
+  // The reconnect's graph load shows the run finished, with the same outcomes.
+  live = {
+    ...live,
+    graph: { ...live.graph!, runs: [{ ...live.graph!.runs[0], status: 'succeeded', finishedAt }] },
+    loadVersion: 1,
+  };
+  await view.rerender(<RunDetail />);
+  expect(getRun).toHaveBeenCalledTimes(2);
+  expect(screen.getByTestId('run-detail-status')).toHaveTextContent(/Succeeded/);
+  expect(screen.getByTestId('run-detail-steps-finished')).toBeTruthy();
+  expect(stepIds()[0]).toBe('run-step-19');
+  expect(screen.getByTestId('run-step-19')).toHaveProp(
+    'accessibilityLabel',
+    'Bash: gh pr create, succeeded',
+  );
+  expect(screen.getByTestId('run-step-18')).toHaveProp(
+    'accessibilityLabel',
+    'Bash: npm test, succeeded',
+  );
+});
+
+describe('at fontScale 2 and 320 pt', () => {
+  const symbols = /[✓✕…┃]/;
+  // Every accessibility label in the STEPS section.
+  const stepLabels = () =>
+    within(screen.getByTestId('run-detail-steps'))
+      .queryAllByLabelText(/./)
+      .map((node) => node.props.accessibilityLabel as string);
+  beforeEach(() => {
+    jest.spyOn(ReactNative, 'useWindowDimensions').mockReturnValue({
+      width: 320,
+      height: 568,
+      scale: 2,
+      fontScale: 2,
+    });
+  });
+
+  test('live step rows wrap to 2 lines, keep their glyph column, and read without symbols', async () => {
+    detail = running();
+    await setup();
+    await mergeEvents();
+    const rows = within(screen.getByTestId('run-detail-steps')).getAllByTestId(/^run-step-\d+$/);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const id = row.props.testID as string;
+      expect(row.props.accessibilityLabel).toMatch(/\w/);
+      expect(row.props.accessibilityLabel).not.toMatch(symbols);
+      expect(screen.getByTestId(`${id}-text`)).toHaveProp('numberOfLines', 2);
+      const glyph = screen.queryByTestId(`${id}-glyph`, { includeHiddenElements: true });
+      if (glyph) expect(glyph.props.className.split(' ')).toContain('shrink-0');
+    }
+    expect(stepLabels()).not.toHaveLength(0);
+    for (const label of stepLabels()) expect(label).not.toMatch(symbols);
+  });
+
+  test('the paging control, notes and rows have labels, testIDs and a 44 pt target', async () => {
+    detail = dropped as Detail;
+    await setup();
+    const more = screen.getByTestId('run-detail-steps-more');
+    expect(more).toHaveProp('accessibilityLabel', 'Show 20 more steps, 20 of 34 shown');
+    expect(more).toHaveStyle({ minHeight: 44, minWidth: 44 });
+    for (const id of ['run-detail-steps-omitted', 'run-detail-steps-dropped']) {
+      const note = screen.getByTestId(id);
+      expect(note.props.accessibilityLabel).toMatch(/\w/);
+      expect(note.props.numberOfLines).toBeUndefined();
+    }
+    for (const label of stepLabels()) expect(label).not.toMatch(symbols);
+    await fireEvent.press(more);
+    expect(screen.getByTestId('run-detail-steps-more')).toHaveProp(
+      'accessibilityLabel',
+      'Show fewer steps, 34 of 34 shown',
+    );
+    for (const label of stepLabels()) expect(label).not.toMatch(symbols);
+  });
+
+  test.each([
+    ['unsupported', { ...(pre09 as unknown as Detail), status: 'succeeded' } as Detail],
+    ['none', stepsOff as Detail],
+    ['waiting', { ...running(), steps: [], stepsOmitted: 0, stepsDropped: 0 } as Detail],
+  ])('the %s text wraps without clipping and reads without symbols', async (state, value) => {
+    detail = value;
+    await setup();
+    const text = screen.getByTestId(`run-detail-steps-${state}`);
+    expect(text.props.numberOfLines).toBeUndefined();
+    expect(text.props.accessibilityLabel).toMatch(/\w/);
+    expect(text.props.accessibilityLabel).not.toMatch(symbols);
+  });
+
+  test('the loading state reads without symbols', async () => {
+    detail = { ...running(), steps: [], stepsOmitted: 0, stepsDropped: 0 };
+    const view = await setup();
+    getRun.mockImplementation(() => new Promise(() => {}));
+    live = { ...live, resyncVersion: 1 };
+    await view.rerender(<RunDetail />);
+    const loading = screen.getByTestId('run-detail-steps-loading');
+    expect(loading).toHaveProp('accessibilityLabel', 'Loading steps');
+    for (const label of stepLabels()) expect(label).not.toMatch(symbols);
+  });
+});
+
+describe('REQUEST', () => {
+  const text = () => screen.getByTestId('run-detail-request-text');
+  // The unconstrained copy reports how many lines the full text takes.
+  const measure = async (lines: number) =>
+    fireEvent(
+      screen.getByTestId('run-detail-request-measure', { includeHiddenElements: true }),
+      'textLayout',
+      {
+        nativeEvent: { lines: Array.from({ length: lines }, () => ({})) },
+      },
+    );
+
+  test('renders the request as selectable plain text with no link', async () => {
+    await setup();
+    const section = screen.getByTestId('run-detail-request');
+    expect(within(section).getByRole('header')).toHaveTextContent('REQUEST');
+    expect(text().props.children).toBe(fixture.request);
+    expect(text()).toHaveProp('selectable', true);
+    expect(text().props.onPress).toBeUndefined();
+    expect(within(section).getByText(/\[the report\]\(https:\/\/example\.test\/issues\/12\)/)).toBe(
+      text(),
+    );
+    expect(within(section).queryAllByRole('link')).toHaveLength(0);
+    expect(within(section).queryAllByTestId(/^markdown-/)).toHaveLength(0);
+    expect(screen.queryByTestId('run-detail-request-truncated')).toBeNull();
+  });
+
+  test('is collapsed to 6 lines, and Show all then Show less toggle it', async () => {
+    await setup();
+    expect(text()).toHaveProp('numberOfLines', 6);
+    await measure(12);
+    const more = screen.getByTestId('run-detail-request-more');
+    expect(more).toHaveTextContent(/Show all/);
+    expect(more).toHaveProp('accessibilityState', { disabled: false, expanded: false });
+    await fireEvent.press(more);
+    expect(text().props.numberOfLines).toBeUndefined();
+    expect(screen.getByTestId('run-detail-request-more')).toHaveTextContent(/Show less/);
+    expect(screen.getByTestId('run-detail-request-more')).toHaveProp('accessibilityState', {
+      disabled: false,
+      expanded: true,
+    });
+    await fireEvent.press(screen.getByTestId('run-detail-request-more'));
+    expect(text()).toHaveProp('numberOfLines', 6);
+    expect(screen.getByTestId('run-detail-request-more')).toHaveTextContent(/Show all/);
+  });
+
+  test('shows no Show all button for a request of 6 lines or fewer', async () => {
+    detail = { ...detail, request: 'one\ntwo\nthree\nfour\nfive\nsix' };
+    await setup();
+    await measure(6);
+    expect(screen.getByTestId('run-detail-request')).toBeTruthy();
+    expect(screen.queryByTestId('run-detail-request-more')).toBeNull();
+  });
+
+  test('shows Show all for more than 6 lines before the text is measured', async () => {
+    detail = { ...detail, request: 'one\ntwo\nthree\nfour\nfive\nsix\nseven' };
+    await setup();
+    expect(screen.getByTestId('run-detail-request-more')).toBeTruthy();
+  });
+
+  test('shows the truncated note only for a truncated request', async () => {
+    detail = { ...detail, ...requestTruncated } as Detail;
+    await setup();
+    const note = screen.getByTestId('run-detail-request-truncated');
+    expect(note).toHaveTextContent('Showing the first 8,000 characters.');
+    const muted = ReactNative.StyleSheet.flatten(
+      screen.getByTestId('run-detail-elapsed').props.style,
+    ).color;
+    expect(note).toHaveStyle({ color: muted });
+    expect(text().props.children).toBe(requestTruncated.request);
+  });
+
+  test.each([
+    ['null', requestNull],
+    ['empty', { ...fixture, request: '' }],
+    ['pre-0.9', pre09],
+  ])('is absent for the %s fixture', async (_, value) => {
+    detail = { ...detail, ...value } as Detail;
+    if (!('request' in value)) delete detail.request;
+    await setup();
+    expect(screen.getByTestId('run-detail-spend')).toBeTruthy();
+    expect(screen.queryByTestId('run-detail-request')).toBeNull();
+    expect(screen.queryByText('REQUEST')).toBeNull();
+  });
+
+  test('comes before SPEND, which comes before STEPS', async () => {
+    await setup();
+    expect(
+      screen.getAllByTestId(/^run-detail-(request|spend|steps)$/).map((node) => node.props.testID),
+    ).toEqual(['run-detail-request', 'run-detail-spend', 'run-detail-steps']);
+  });
+
+  test('at fontScale 2 and 320 pt, the text and the button wrap without clipping', async () => {
+    jest.spyOn(ReactNative, 'useWindowDimensions').mockReturnValue({
+      width: 320,
+      height: 568,
+      scale: 2,
+      fontScale: 2,
+    });
+    await setup();
+    await measure(30);
+    const more = screen.getByTestId('run-detail-request-more');
+    expect(more).toHaveProp('accessibilityLabel', 'Show all');
+    expect(more).toHaveStyle({ minHeight: 44, minWidth: 44 });
+    expect(within(more).getByText('Show all').props.numberOfLines).toBeUndefined();
+    for (const node of [text(), screen.getByTestId('run-detail-request')]) {
+      const style = ReactNative.StyleSheet.flatten(node.props.style) ?? {};
+      expect(style).not.toHaveProperty('height');
+      expect(style).not.toHaveProperty('maxHeight');
+      expect(style.overflow).not.toBe('hidden');
+      expect(node.props.adjustsFontSizeToFit).toBeUndefined();
+    }
+    expect(text()).toHaveProp('numberOfLines', 6);
+    await fireEvent.press(more);
+    expect(text().props.numberOfLines).toBeUndefined();
+  });
+});

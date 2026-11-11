@@ -17,7 +17,11 @@ export function ExternalLink({
   label,
   url,
   ...props
-}: Omit<ControlProps, 'onPress' | 'accessibilityRole'> & { label: string; url: string }) {
+}: Omit<ControlProps, 'onPress' | 'accessibilityRole'> & {
+  label: string;
+  url: string;
+  children?: ReactNode;
+}) {
   return <Link label={label} url={url} {...props} />;
 }
 

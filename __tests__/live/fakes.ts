@@ -1,3 +1,7 @@
+import { SseParser } from '../../src/live/sse';
+import { createStepStore } from '../../src/live/stepStore';
+import { stepFromEvent } from '../../src/live/steps';
+
 type Chunk = { done: boolean; value?: Uint8Array };
 
 // A fake readable body that tests feed chunk by chunk.
@@ -42,3 +46,15 @@ export const baseUrl = new URL('/ ', 'https://example.invalid').origin;
 export const flush = async () => {
   for (let i = 0; i < 10; i++) await Promise.resolve();
 };
+
+// A real step store that notifies right away, optionally filled from a
+// recorded event stream's step frames.
+export function fakeStepStore(stream?: string) {
+  const store = createStepStore({ flushMs: 0 });
+  for (const frame of stream ? new SseParser().push(stream) : []) {
+    if (frame.event !== 'step') continue;
+    const parsed = stepFromEvent(JSON.parse(frame.data));
+    if (parsed) store.merge(parsed.runId, [parsed.step]);
+  }
+  return store;
+}

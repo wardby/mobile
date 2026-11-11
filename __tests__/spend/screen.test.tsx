@@ -80,7 +80,7 @@ test('default week request, persisted switches, totals, truncation, budgets and 
   expect(screen.getByTestId('spend-total')).toHaveTextContent('≥ $12.00');
   expect(screen.getByText('12 runs this week')).toBeTruthy();
   expect(screen.getByTestId('spend-truncated')).toHaveTextContent(
-    'Only the latest 2,000 runs are counted.',
+    'Only the latest 2,000 runs are counted. Totals and breakdowns may be low.',
   );
   expect(screen.queryByTestId('spend-budget-cap')).toBeNull();
   await fireEvent.press(screen.getByTestId('spend-period-day'));
@@ -117,8 +117,8 @@ test('links and issue/agent disclosures expand and collapse', async () => {
   await fireEvent.press(screen.getByTestId('spend-issue-more'));
   await fireEvent.press(screen.getByTestId('spend-issue-code_host:github:wardby/mobile#9'));
   expect(open).toHaveBeenCalledWith('https://github.com/wardby/mobile/issues/9');
-  await fireEvent.press(screen.getByTestId('spend-issue-more'));
-  expect(screen.getByTestId('spend-issue-more')).toHaveTextContent(/Show all \(12\)/);
+  await fireEvent.press(screen.getByTestId('spend-issue-fewer'));
+  expect(screen.getByTestId('spend-issue-more')).toHaveTextContent(/Show 50 more/);
   await fireEvent.press(screen.getByTestId('spend-agent-more'));
   expect(screen.getByTestId('spend-agent-a9')).toBeTruthy();
   open.mockRestore();
@@ -178,4 +178,85 @@ test('agent spend row opens the Runs tab with the agent and navigation params', 
     pathname: '/(tabs)',
     params: { agent: 'a0', agentNavigation: expect.any(String) },
   });
+});
+
+const large = (issues: number, agents: number, truncated = false): Graph => ({
+  ...graph(),
+  truncated,
+  runs: Array.from({ length: Math.max(issues, agents) }, (_, i) => ({
+    ...graph().runs[0],
+    id: `r${i}`,
+    agentId: `a${i % agents}`,
+    agentName: `Agent ${i % agents}`,
+    trigger: {
+      ...graph().runs[0].trigger,
+      number: (i % issues) + 1,
+    } as Graph['runs'][number]['trigger'],
+  })),
+});
+const issueRows = () => screen.queryAllByTestId(/^spend-issue-code_host:/).length;
+const agentRows = () => screen.queryAllByTestId(/^spend-agent-a\d+$/).length;
+test.each([
+  ['issue', 120, 1, issueRows, [60, 110, 120]],
+  ['agent', 1, 65, agentRows, [60, 65]],
+] as const)(
+  '%s list pages by 50, shows fewer, and resets on a period change',
+  async (kind, issues, agents, rows, steps) => {
+    getGraph.mockResolvedValue(large(issues, agents));
+    const total = Math.max(issues, agents);
+    await render(<Spend />);
+    await waitFor(() => expect(rows()).toBe(10));
+    expect(screen.queryByTestId(`spend-${kind}-fewer`)).toBeNull();
+    const more = screen.getByTestId(`spend-${kind}-more`);
+    expect(more).toHaveTextContent('Show 50 more');
+    expect(more).toHaveProp('accessibilityLabel', `Show 50 more ${kind}s (${total} total)`);
+    for (const step of steps) {
+      await fireEvent.press(screen.getByTestId(`spend-${kind}-more`));
+      expect(rows()).toBe(step);
+    }
+    expect(screen.queryByTestId(`spend-${kind}-more`)).toBeNull();
+    const fewer = screen.getByTestId(`spend-${kind}-fewer`);
+    expect(fewer).toHaveTextContent('Show fewer');
+    expect(fewer).toHaveProp('accessibilityLabel', `Show only the top 10 ${kind}s`);
+    await fireEvent.press(fewer);
+    expect(rows()).toBe(10);
+    expect(screen.queryByTestId(`spend-${kind}-fewer`)).toBeNull();
+    await fireEvent.press(screen.getByTestId(`spend-${kind}-more`));
+    expect(rows()).toBe(60);
+    await fireEvent.press(screen.getByTestId('spend-period-month'));
+    await waitFor(() =>
+      expect(getGraph).toHaveBeenLastCalledWith({ since: '2026-10-01T00:00:00.000Z', limit: 2000 }),
+    );
+    await waitFor(() => expect(rows()).toBe(10));
+    expect(screen.queryByTestId(`spend-${kind}-fewer`)).toBeNull();
+  },
+);
+test('truncated graphs flag partial breakdowns', async () => {
+  getGraph.mockResolvedValue(large(3, 3, true));
+  const view = await render(<Spend />);
+  expect(await screen.findByTestId('spend-truncated')).toHaveTextContent(
+    'Only the latest 2,000 runs are counted. Totals and breakdowns may be low.',
+  );
+  expect(screen.getByTestId('spend-issue-partial')).toHaveTextContent('Partial');
+  expect(screen.getByTestId('spend-agent-partial')).toHaveTextContent('Partial');
+  await view.unmount();
+  getGraph.mockResolvedValue(large(3, 3, false));
+  await render(<Spend />);
+  await waitFor(() => expect(screen.getByTestId('spend-total')).toHaveTextContent('$3.00'));
+  expect(screen.queryByTestId('spend-truncated')).toBeNull();
+  expect(screen.queryByTestId('spend-issue-partial')).toBeNull();
+  expect(screen.queryByTestId('spend-agent-partial')).toBeNull();
+});
+test('renders 500 issues and 100 agents fully expanded', async () => {
+  getGraph.mockResolvedValue(large(500, 100));
+  await render(<Spend />);
+  await waitFor(() => expect(issueRows()).toBe(10));
+  for (let i = 0; i < 10 && screen.queryByTestId('spend-issue-more'); i++)
+    await fireEvent.press(screen.getByTestId('spend-issue-more'));
+  for (let i = 0; i < 2 && screen.queryByTestId('spend-agent-more'); i++)
+    await fireEvent.press(screen.getByTestId('spend-agent-more'));
+  expect(issueRows()).toBe(500);
+  expect(agentRows()).toBe(100);
+  expect(screen.getByTestId('spend-scroll')).toBeTruthy();
+  expect(screen.getByTestId('spend-issue-unlinked')).toBeTruthy();
 });

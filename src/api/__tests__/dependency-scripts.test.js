@@ -43,7 +43,7 @@ test('contract sync isolates npm pack and disables lifecycle scripts', () => {
   });
   expect(execFileSync).toHaveBeenCalledWith(
     'npm',
-    ['pack', '@wardby/cli@0.6.0', '--json', '--ignore-scripts', '--pack-destination', temporary],
+    ['pack', '@wardby/cli@0.9.6', '--json', '--ignore-scripts', '--pack-destination', temporary],
     { cwd: temporary, encoding: 'utf8' },
   );
   expect(execFileSync).toHaveBeenCalledTimes(2);

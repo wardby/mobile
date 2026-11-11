@@ -3,7 +3,7 @@ const { execFileSync } = require('node:child_process');
 const { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } = require('node:fs');
 const path = require('node:path');
 
-const CLI_VERSION = '0.6.0';
+const CLI_VERSION = '0.9.6';
 const cache = path.join(__dirname, '../../.cache');
 mkdirSync(cache, { recursive: true });
 const temporary = mkdtempSync(path.join(cache, 'wardby-api-'));

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { cn } from 'tailwind-variants';
 import { Linking, type PressableProps } from 'react-native';
 import ArrowUpRight from 'lucide-react-native/icons/arrow-up-right';
@@ -7,11 +8,13 @@ import { Icon } from './icon';
 import { useTheme } from './provider';
 export function Link({
   label,
+  children,
   url,
   style,
   className = '',
   ...props
-}: Omit<PressableProps, 'children' | 'onPress' | 'accessibilityRole'> & {
+}: Omit<PressableProps, 'onPress' | 'accessibilityRole'> & {
+  children?: ReactNode;
   label: string;
   url: string;
 }) {
@@ -28,9 +31,11 @@ export function Link({
       className={cn(`flex-row items-center gap-2`, className)}
       style={(state) => [typeof style === 'function' ? style(state) : style]}
     >
-      <Text className="text-[17px] font-semibold shrink" style={{ color: colors.tint }}>
-        {label}
-      </Text>
+      {children ?? (
+        <Text className="text-[17px] font-semibold shrink" style={{ color: colors.tint }}>
+          {label}
+        </Text>
+      )}
       <Text accessible={false} className="sr-only" style={{ display: 'none' }}>
         ↗
       </Text>
