@@ -11,6 +11,7 @@ import {
   labelEntryCount,
   launcherLabel,
   nativeKubernetesRows,
+  nativeLabelGroups,
   warmPoolLabel,
 } from '../../src/infra/format';
 
@@ -125,20 +126,38 @@ test('coding rows and label groups read exactly the schema fields, each once', (
   expect([...reads].sort()).toEqual([...fields].sort());
 });
 
-test('nativeKubernetesRows shows every native Kubernetes field once', () => {
+test('nativeKubernetesRows shows every native Kubernetes field except the label maps', () => {
   expect(nativeKubernetesRows(native)).toEqual([
     { label: 'Namespace', value: 'example-native-namespace' },
     { label: 'Runtime class', value: 'Default' },
     { label: 'Run label', value: 'example.test/native-run' },
-    { label: 'Component labels', value: 'example.test/component=native' },
-    { label: 'Warm pool labels', value: 'example.test/pool=warm\nexample.test/tier=native' },
     { label: 'Warm worker', value: 'example.test/warm-worker' },
   ]);
 });
 
-test('nativeKubernetesRows reads exactly the schema fields, each once', () => {
+test('nativeLabelGroups holds both native label maps', () => {
+  expect(nativeLabelGroups(native)).toEqual([
+    { label: 'Component labels', entries: ['example.test/component=native'] },
+    { label: 'Warm pool labels', entries: ['example.test/pool=warm', 'example.test/tier=native'] },
+  ]);
+  expect(labelEntryCount(nativeLabelGroups(native))).toBe(
+    Object.keys(native.componentLabel).length + Object.keys(native.warmPoolLabel).length,
+  );
+});
+
+test('nativeLabelGroups gives an empty map no entries', () => {
+  const groups = nativeLabelGroups({ ...native, componentLabel: {}, warmPoolLabel: {} });
+  expect(groups).toEqual([
+    { label: 'Component labels', entries: [] },
+    { label: 'Warm pool labels', entries: [] },
+  ]);
+  expect(labelEntryCount(groups)).toBe(0);
+});
+
+test('native rows and label groups read exactly the schema fields, each once', () => {
   const { proxy, reads } = tracked(native);
   nativeKubernetesRows(proxy);
+  nativeLabelGroups(proxy);
   const fields: (keyof NativeK8s)[] = [
     'namespace',
     'runtimeClass',
@@ -150,20 +169,13 @@ test('nativeKubernetesRows reads exactly the schema fields, each once', () => {
   expect([...reads].sort()).toEqual([...fields].sort());
 });
 
-test('a null runtime class and empty label maps read as words, not blanks', () => {
+test('a null runtime class reads as a word, not a blank', () => {
   const codingRows = codingKubernetesRows({ ...coding, runtimeClass: null });
-  const nativeRows = nativeKubernetesRows({
-    ...native,
-    runtimeClass: null,
-    componentLabel: {},
-    warmPoolLabel: {},
-  });
+  const nativeRows = nativeKubernetesRows({ ...native, runtimeClass: null });
   const value = (rows: { label: string; value: string }[], label: string) =>
     rows.find((row) => row.label === label)?.value;
   expect(value(codingRows, 'Runtime class')).toBe('Default');
   expect(value(nativeRows, 'Runtime class')).toBe('Default');
-  expect(value(nativeRows, 'Component labels')).toBe('None');
-  expect(value(nativeRows, 'Warm pool labels')).toBe('None');
   for (const row of [...codingRows, ...nativeRows]) {
     expect(row.value).not.toBe('');
     expect(row.value).not.toMatch(/null|undefined/);

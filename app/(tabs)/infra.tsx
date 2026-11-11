@@ -13,8 +13,13 @@ import {
   isCodingLauncherConfigured,
   labelEntryCount,
   launcherLabel,
+  nativeKubernetesRows,
+  nativeLabelGroups,
+  warmPoolLabel,
   type CodingKubernetes,
   type Infra,
+  type InfraLabelGroup,
+  type NativeKubernetes,
 } from '../../src/infra/format';
 import { useInfra } from '../../src/infra/useInfra';
 
@@ -43,25 +48,23 @@ function Row({ label, value, testID }: { label: string; value: string; testID?: 
     </Box>
   );
 }
-function CodingKubernetesBlock({
-  k8s,
+function LabelDisclosure({
+  testID,
+  groups,
   expanded,
   onToggle,
 }: {
-  k8s: CodingKubernetes;
+  testID: string;
+  groups: InfraLabelGroup[];
   expanded: boolean;
   onToggle: () => void;
 }) {
   const colors = useColors();
-  const groups = codingLabelGroups(k8s);
   return (
-    <Box testID="infra-coding-kubernetes" className="gap-3">
-      {codingKubernetesRows(k8s).map((row) => (
-        <Row key={row.label} label={row.label} value={row.value} />
-      ))}
+    <>
       <Box className="items-start">
         <TextButton
-          testID="infra-coding-labels-toggle"
+          testID={testID}
           label={expanded ? 'Hide labels' : `Show labels (${labelEntryCount(groups)})`}
           expanded={expanded}
           onPress={onToggle}
@@ -84,6 +87,52 @@ function CodingKubernetesBlock({
             )}
           </Box>
         ))}
+    </>
+  );
+}
+function CodingKubernetesBlock({
+  k8s,
+  expanded,
+  onToggle,
+}: {
+  k8s: CodingKubernetes;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Box testID="infra-coding-kubernetes" className="gap-3">
+      {codingKubernetesRows(k8s).map((row) => (
+        <Row key={row.label} label={row.label} value={row.value} />
+      ))}
+      <LabelDisclosure
+        testID="infra-coding-labels-toggle"
+        groups={codingLabelGroups(k8s)}
+        expanded={expanded}
+        onToggle={onToggle}
+      />
+    </Box>
+  );
+}
+function NativeKubernetesBlock({
+  k8s,
+  expanded,
+  onToggle,
+}: {
+  k8s: NativeKubernetes;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Box testID="infra-native-kubernetes" className="gap-3">
+      {nativeKubernetesRows(k8s).map((row) => (
+        <Row key={row.label} label={row.label} value={row.value} />
+      ))}
+      <LabelDisclosure
+        testID="infra-native-labels-toggle"
+        groups={nativeLabelGroups(k8s)}
+        expanded={expanded}
+        onToggle={onToggle}
+      />
     </Box>
   );
 }
@@ -93,6 +142,8 @@ export default function Infrastructure() {
   // Labels stay open only for the response they were opened on, so every refetch collapses them.
   const [labelsOpenFor, setLabelsOpenFor] = useState<Infra | null>(null);
   const labelsExpanded = infra !== null && labelsOpenFor === infra;
+  const [nativeLabelsOpenFor, setNativeLabelsOpenFor] = useState<Infra | null>(null);
+  const nativeLabelsExpanded = infra !== null && nativeLabelsOpenFor === infra;
   const muted = { color: colors.muted };
   return (
     <SafeAreaView
@@ -125,31 +176,61 @@ export default function Infrastructure() {
           </Box>
         ) : (
           infra && (
-            <Box testID="infra-coding" className="gap-3">
-              <Header label="CODING LAUNCHER" />
-              <Row
-                label="Launcher"
-                value={launcherLabel(infra.launcher)}
-                testID="infra-coding-launcher"
-              />
-              {!isCodingLauncherConfigured(infra.launcher) ? (
-                <Text testID="infra-coding-not-configured" style={muted}>
-                  {CODING_NOT_CONFIGURED_TEXT}
-                </Text>
-              ) : infra.kubernetes ? (
-                <CodingKubernetesBlock
-                  k8s={infra.kubernetes}
-                  expanded={labelsExpanded}
-                  onToggle={() => setLabelsOpenFor(labelsExpanded ? null : infra)}
+            <>
+              <Box testID="infra-coding" className="gap-3">
+                <Header label="CODING LAUNCHER" />
+                <Row
+                  label="Launcher"
+                  value={launcherLabel(infra.launcher)}
+                  testID="infra-coding-launcher"
                 />
-              ) : (
-                infra.launcher === 'kubernetes' && (
-                  <Text testID="infra-coding-kubernetes-missing" style={muted}>
-                    Kubernetes details not reported
+                {!isCodingLauncherConfigured(infra.launcher) ? (
+                  <Text testID="infra-coding-not-configured" style={muted}>
+                    {CODING_NOT_CONFIGURED_TEXT}
                   </Text>
-                )
-              )}
-            </Box>
+                ) : infra.kubernetes ? (
+                  <CodingKubernetesBlock
+                    k8s={infra.kubernetes}
+                    expanded={labelsExpanded}
+                    onToggle={() => setLabelsOpenFor(labelsExpanded ? null : infra)}
+                  />
+                ) : (
+                  infra.launcher === 'kubernetes' && (
+                    <Text testID="infra-coding-kubernetes-missing" style={muted}>
+                      Kubernetes details not reported
+                    </Text>
+                  )
+                )}
+              </Box>
+              <Box testID="infra-native" className="gap-3">
+                <Header label="NATIVE AGENTS" />
+                {infra.native ? (
+                  <>
+                    <Row
+                      label="Launcher"
+                      value={launcherLabel(infra.native.launcher)}
+                      testID="infra-native-launcher"
+                    />
+                    <Row
+                      label="Warm pool"
+                      value={warmPoolLabel(infra.native.warmPoolSize)}
+                      testID="infra-native-warm-pool"
+                    />
+                    {infra.native.kubernetes && (
+                      <NativeKubernetesBlock
+                        k8s={infra.native.kubernetes}
+                        expanded={nativeLabelsExpanded}
+                        onToggle={() => setNativeLabelsOpenFor(nativeLabelsExpanded ? null : infra)}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <Text testID="infra-native-not-configured" style={muted}>
+                    Native agents aren&apos;t configured on this server.
+                  </Text>
+                )}
+              </Box>
+            </>
           )
         )}
       </ScrollView>

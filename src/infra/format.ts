@@ -68,9 +68,15 @@ export function nativeKubernetesRows(k8s: NativeKubernetes): InfraRow[] {
     { label: 'Namespace', value: k8s.namespace },
     { label: 'Runtime class', value: runtimeClassLabel(k8s.runtimeClass) },
     { label: 'Run label', value: k8s.runLabel },
-    { label: 'Component labels', value: formatLabels(k8s.componentLabel) },
-    { label: 'Warm pool labels', value: formatLabels(k8s.warmPoolLabel) },
     { label: 'Warm worker', value: k8s.warmWorkerLabel },
+  ];
+}
+
+// The native label maps, shown behind a disclosure.
+export function nativeLabelGroups(k8s: NativeKubernetes): InfraLabelGroup[] {
+  return [
+    { label: 'Component labels', entries: labelEntries(k8s.componentLabel) },
+    { label: 'Warm pool labels', entries: labelEntries(k8s.warmPoolLabel) },
   ];
 }
 
