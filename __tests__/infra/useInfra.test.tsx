@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { AppState, type AppStateStatus } from 'react-native';
+import graphFixture from '../../src/api/__fixtures__/graph.json';
 import dockerFixture from '../../src/api/__fixtures__/infra.json';
 import kubernetesFixture from '../../src/api/__fixtures__/infra-kubernetes.json';
 import invalidToken from '../../src/api/__fixtures__/invalid_token.json';
@@ -8,6 +9,7 @@ import { ApiError, createApiClient } from '../../src/api/client';
 import type { components } from '../../src/api/schema';
 import { session } from '../../src/auth/session';
 import { useInfra } from '../../src/infra/useInfra';
+import { useLiveGraph } from '../../src/live/useLiveGraph';
 
 let mockFocus: () => void;
 let mockBlur: () => void;
@@ -30,8 +32,11 @@ jest.mock('expo-router', () => ({
   },
 }));
 jest.mock('../../src/auth/session', () => ({ session: { apiClient: jest.fn() } }));
+jest.mock('../../src/live/useLiveGraph', () => ({ useLiveGraph: jest.fn() }));
 
 type Infra = components['schemas']['infra-info'];
+type Graph = components['schemas']['graph-snapshot'];
+let live: ReturnType<typeof useLiveGraph>;
 const docker = dockerFixture as Infra;
 const kubernetes = kubernetesFixture as Infra;
 let view: Awaited<ReturnType<typeof renderHook<ReturnType<typeof useInfra>, unknown>>>;
@@ -75,6 +80,16 @@ beforeEach(() => {
   jest.clearAllMocks();
   getInfra = jest.fn().mockResolvedValue(docker);
   (session.apiClient as jest.Mock).mockReturnValue({ getInfra });
+  live = {
+    graph: graphFixture as Graph,
+    status: 'live',
+    lastUpdated: null,
+    resyncVersion: 0,
+    refresh: jest.fn(),
+    range: '24h',
+    setRange: jest.fn(),
+  } as ReturnType<typeof useLiveGraph>;
+  (useLiveGraph as jest.Mock).mockImplementation(() => live);
   handlers = [];
   remove = jest.fn();
   jest.spyOn(AppState, 'addEventListener').mockImplementation((type, handler) => {
@@ -236,4 +251,33 @@ test('a late response after unmount does not update state', async () => {
   await act(async () => pending.resolve(kubernetes));
   expect(current()).toBe(before);
   expect(errors).not.toHaveBeenCalled();
+});
+test('a resync reloads once, and the first render adds no extra call', async () => {
+  await mount();
+  await waitFor(() => expect(current().infra).toEqual(docker));
+  await act(async () => view.rerender({}));
+  expect(getInfra).toHaveBeenCalledTimes(1);
+  getInfra.mockResolvedValueOnce(kubernetes);
+  live = { ...live, resyncVersion: 1 };
+  await act(async () => view.rerender({}));
+  await waitFor(() => expect(current().infra).toEqual(kubernetes));
+  expect(getInfra).toHaveBeenCalledTimes(2);
+  await act(async () => view.rerender({}));
+  expect(getInfra).toHaveBeenCalledTimes(2);
+});
+test('graph changes from run, service or outcome events do not reload', async () => {
+  await mount();
+  await waitFor(() => expect(current().infra).toEqual(docker));
+  getInfra.mockClear();
+  const graph = graphFixture as Graph;
+  const [first, ...rest] = graph.runs;
+  for (const next of [
+    { ...graph, runs: [{ ...first, status: 'succeeded' as const }, ...rest] },
+    { ...graph, runs: [{ ...first, services: [] }, ...rest] },
+    { ...graph, runs: [{ ...first, outcomes: [] }, ...rest] },
+  ]) {
+    live = { ...live, graph: next, lastUpdated: new Date(0) };
+    await act(async () => view.rerender({}));
+  }
+  expect(getInfra).not.toHaveBeenCalled();
 });

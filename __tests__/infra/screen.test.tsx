@@ -22,6 +22,7 @@ jest.mock('expo-router', () => ({
   },
 }));
 jest.mock('../../src/auth/session', () => ({ session: { apiClient: jest.fn() } }));
+jest.mock('../../src/live/useLiveGraph', () => ({ useLiveGraph: () => ({ resyncVersion: 0 }) }));
 
 type Infra = components['schemas']['infra-info'];
 const docker = dockerFixture as Infra;

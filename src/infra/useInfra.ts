@@ -4,10 +4,12 @@ import { AppState } from 'react-native';
 import { ApiError } from '../api/client';
 import type { components } from '../api/schema';
 import { session } from '../auth/session';
+import { useLiveGraph } from '../live/useLiveGraph';
 
 type Infra = components['schemas']['infra-info'];
 
 export function useInfra() {
+  const { resyncVersion } = useLiveGraph();
   const [infra, setInfra] = useState<Infra | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
@@ -46,6 +48,14 @@ export function useInfra() {
       return () => subscription.remove();
     }, [load]),
   );
+  // A resync means the server's live connection came back (for example after a
+  // restart), when its infrastructure may have changed. Run events never reload.
+  const previous = useRef(resyncVersion);
+  useEffect(() => {
+    if (previous.current === resyncVersion) return;
+    previous.current = resyncVersion;
+    void refetch();
+  }, [resyncVersion, refetch]);
   useEffect(() => {
     const counter = request;
     return () => {
