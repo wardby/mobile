@@ -334,6 +334,22 @@ test('pull to refresh calls refresh()', async () => {
   expect(refresh).toHaveBeenCalledTimes(1);
 });
 
+test('screen root, rows, menus and refresh have stable testIDs and labels', async () => {
+  state.graph = graphOf([run('alpha'), run('beta', { status: 'failed' })]);
+  await render(app());
+  expect(screen.getByTestId('screen-runs')).toBeTruthy();
+  for (const id of ['alpha', 'beta'])
+    expect(screen.getByTestId(`run-row-${id}`).props.accessibilityLabel).toMatch(
+      new RegExp(`^${id}, `),
+    );
+  expect(screen.getByTestId('runs-agent')).toHaveProp('accessibilityLabel', 'Agent, All agents');
+  expect(screen.getByTestId('runs-filter')).toHaveProp('accessibilityLabel', 'Status, All');
+  expect(screen.getByTestId('runs-range').props.accessibilityLabel).toMatch(/^Time range, /);
+  const control = screen.getByTestId('runs-list').props.refreshControl;
+  expect(control.props.testID).toBe('runs-refresh');
+  expect(control.props.accessibilityLabel).toBe('Refresh runs');
+});
+
 test('tapping a row opens the run detail', async () => {
   state.graph = graphOf([run('run-42')]);
   await render(app());

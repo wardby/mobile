@@ -403,3 +403,21 @@ test.each(['light', 'dark'] as const)('renders with theme colours in %s mode', a
     color: ReactNative.PlatformColor('label'),
   });
 });
+
+test('screen root and Kubernetes rows have stable testIDs derived from the row', async () => {
+  reply(ok(kubernetes));
+  await render(<Infrastructure />);
+  expect(screen.getByTestId('screen-infra')).toBeTruthy();
+  expect(await screen.findByTestId('infra-coding-kubernetes-row-namespace')).toHaveTextContent(
+    coding.namespace,
+  );
+  expect(screen.getByTestId('infra-coding-kubernetes-row-run-label-hash')).toHaveTextContent(
+    `${coding.runLabelHashChars} characters`,
+  );
+  expect(screen.getByTestId('infra-native-kubernetes-row-warm-worker')).toHaveTextContent(
+    native.warmWorkerLabel,
+  );
+  expect(screen.getByTestId('infra-coding-labels-toggle').props.accessibilityLabel).toMatch(
+    /^Show labels/,
+  );
+});

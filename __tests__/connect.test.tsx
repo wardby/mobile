@@ -75,3 +75,9 @@ test('signing in shows loading label and disables button', async () => {
   expect(screen.getByText('Signing in…')).toBeTruthy();
   expect(screen.getByTestId('connect-submit')).toBeDisabled();
 });
+test('screen root has its screen-connect testID', async () => {
+  await render(<Connect />);
+  expect(screen.getByTestId('screen-connect')).toBeTruthy();
+  expect(screen.getByTestId('connect-host')).toHaveProp('accessibilityLabel', 'Server');
+  expect(screen.getByTestId('connect-submit')).toHaveProp('accessibilityLabel', 'Sign in');
+});

@@ -260,3 +260,13 @@ test('renders 500 issues and 100 agents fully expanded', async () => {
   expect(screen.getByTestId('spend-scroll')).toBeTruthy();
   expect(screen.getByTestId('spend-issue-unlinked')).toBeTruthy();
 });
+test('screen root, period buttons and agent rows have testIDs and labels', async () => {
+  await render(<Spend />);
+  expect(screen.getByTestId('screen-spend')).toBeTruthy();
+  expect(screen.getByTestId('spend-period-week')).toHaveProp('accessibilityLabel', 'This week');
+  expect(await screen.findByTestId('spend-agent-a0')).toHaveProp(
+    'accessibilityLabel',
+    'View runs by Agent 0',
+  );
+  expect(screen.getByTestId('screen-spend')).toBeTruthy();
+});

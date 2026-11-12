@@ -25,6 +25,7 @@ export default function Connect() {
   }
   return (
     <KeyboardAvoidingView
+      testID="screen-connect"
       className="flex-1"
       style={[{ backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

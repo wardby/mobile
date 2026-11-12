@@ -130,6 +130,7 @@ export default function Runs() {
 
   return (
     <SafeAreaView
+      testID="screen-runs"
       edges={['left', 'right']}
       className="flex-1"
       style={[{ backgroundColor: colors.background }]}
@@ -342,6 +343,7 @@ export default function Runs() {
           }
           refreshControl={
             <RefreshControl
+              testID="runs-refresh"
               accessibilityLabel="Refresh runs"
               refreshing={refreshing}
               onRefresh={onRefresh}

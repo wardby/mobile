@@ -109,11 +109,11 @@ test('loads finished coding detail, all blocks, PR link and expandable plain res
     expect(screen.getByTestId(`run-detail-${id}`)).toBeTruthy();
   expect(screen.getByTestId('run-detail-elapsed')).toHaveTextContent(new RegExp('Took 7m 12s'));
   expect(screen.getByTestId('run-detail-code')).toHaveTextContent(new RegExp('team/project'));
-  expect(screen.getByTestId('run-outcome-0')).toHaveProp(
+  expect(screen.getByTestId('run-outcome-row-pr-team/project-12')).toHaveProp(
     'accessibilityLabel',
     'Pull request 12, open, opens in browser',
   );
-  await fireEvent.press(screen.getByTestId('run-outcome-0'));
+  await fireEvent.press(screen.getByTestId('run-outcome-row-pr-team/project-12'));
   expect(open).toHaveBeenCalledWith(
     detail.outcomes[0].kind === 'pull_request' ? detail.outcomes[0].url : '',
   );
@@ -264,8 +264,8 @@ test('failed run shows error; comments without URL and checks are text', async (
   };
   await setup();
   expect(screen.getByTestId('run-detail-error')).toHaveTextContent(new RegExp('Worker failed'));
-  for (const i of [0, 1, 2])
-    expect(screen.getByTestId(`run-outcome-${i}`).props.onPress).toBeUndefined();
+  for (const id of ['issue-comment-A-1', 'comment-team/project-2', 'check-team/project-3'])
+    expect(screen.getByTestId(`run-outcome-row-${id}`).props.onPress).toBeUndefined();
 });
 
 test('issue comment with URL opens browser', async () => {
@@ -283,10 +283,63 @@ test('issue comment with URL opens browser', async () => {
     ],
   };
   await setup();
-  await fireEvent.press(screen.getByTestId('run-outcome-0'));
+  await fireEvent.press(screen.getByTestId('run-outcome-row-issue-comment-A-1'));
   expect(open).toHaveBeenCalledWith('https://example.test/issue/A-1');
 });
 
+test('screen root and outcome rows have stable, data-derived testIDs', async () => {
+  detail = {
+    ...detail,
+    outcomes: [
+      {
+        kind: 'pull_request',
+        provider: 'github',
+        repository: 'team/project',
+        number: 12,
+        url: 'https://example.test/pr/12',
+        state: 'open',
+        at: null,
+      },
+      { kind: 'issue_comment', provider: 'jira', issueKey: 'A-1', url: null, at: null },
+      {
+        kind: 'code_host_comment',
+        provider: 'github',
+        repository: 'team/project',
+        number: 2,
+        at: null,
+      },
+      {
+        kind: 'check',
+        provider: 'github',
+        repository: 'team/project',
+        number: null,
+        completed: false,
+        at: null,
+      },
+    ],
+  };
+  await setup();
+  expect(screen.getByTestId('screen-run-detail')).toBeTruthy();
+  expect(screen.getByTestId('run-outcome-row-pr-team/project-12')).toHaveProp(
+    'accessibilityLabel',
+    'Pull request 12, open, opens in browser',
+  );
+  expect(screen.getByTestId('run-outcome-row-issue-comment-A-1')).toHaveProp(
+    'accessibilityLabel',
+    'Issue comment · A-1',
+  );
+  expect(screen.getByTestId('run-outcome-row-comment-team/project-2')).toBeTruthy();
+  expect(screen.getByTestId('run-outcome-row-check-team/project')).toBeTruthy();
+  expect(screen.queryByTestId('run-outcome-0')).toBeNull();
+});
+test('the loading screen has its screen root and a labelled spinner', async () => {
+  getRun.mockImplementation(() => new Promise(() => {}));
+  await setup();
+  expect(screen.getByTestId('screen-run-detail')).toBeTruthy();
+  expect(
+    within(screen.getByTestId('run-detail-loading')).getByLabelText('Loading run'),
+  ).toBeTruthy();
+});
 test('loading state', async () => {
   getRun.mockImplementation(() => new Promise(() => {}));
   await setup();
@@ -325,7 +378,7 @@ test('outcomes arriving with the first live graph refetch stale detail', async (
 
 test('outcome links visibly identify that they open outside the app', async () => {
   await setup();
-  const outcome = screen.getByTestId('run-outcome-0');
+  const outcome = screen.getByTestId('run-outcome-row-pr-team/project-12');
   expect(outcome).not.toHaveTextContent(/›/);
   expect(outcome).toHaveProp('accessibilityHint', 'Opens in the browser');
 });

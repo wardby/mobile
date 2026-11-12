@@ -8,6 +8,8 @@ import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { TextButton } from '../../components/ui/actions';
 import { Link } from '../../components/ui/link';
+import { Icon } from '../../components/ui/icon';
+import ArrowUpRight from 'lucide-react-native/icons/arrow-up-right';
 import { Progress } from '../../components/ui/progress';
 import { Text } from '../../components/ui/text';
 import { useColors } from '../../src/navigation/styles';
@@ -226,5 +228,16 @@ test.each(['ok', 'warn', 'over'] as const)('Progress uses the %s level token', a
   expect(screen.getByTestId('progress-fill')).toHaveStyle({
     width: '75%',
     backgroundColor: theme.light.progress[level],
+  });
+});
+
+test('decorative icons are hidden from accessibility on iOS and Android', async () => {
+  const view = await render(<Icon testID="icon" as={ArrowUpRight} size={17} />);
+  // The native SVG view is not a host component Testing Library queries; read the rendered tree.
+  expect((view.toJSON() as { props: object }).props).toMatchObject({
+    testID: 'icon',
+    accessible: false,
+    accessibilityElementsHidden: true,
+    importantForAccessibility: 'no-hide-descendants',
   });
 });

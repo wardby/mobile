@@ -116,3 +116,25 @@ test('web can launch when Appearance has no native override API', () => {
     Object.defineProperty(Appearance, 'setColorScheme', { value: native, configurable: true });
   }
 });
+
+test('Settings has its screen root, section headers and labelled rows and controls', async () => {
+  const screen = await render(<Settings />);
+  expect(screen.getByTestId('screen-settings')).toBeTruthy();
+  for (const title of ['SERVER', 'APPEARANCE', 'APP'])
+    expect(screen.getByText(title)).toHaveProp('accessibilityRole', 'header');
+  expect(screen.getByTestId('settings-host')).toHaveProp(
+    'accessibilityLabel',
+    'Server, server.example',
+  );
+  expect(screen.getByTestId('settings-version').props.accessibilityLabel).toMatch(/^Version, /);
+  for (const [option, label] of [
+    ['system', 'System'],
+    ['light', 'Light'],
+    ['dark', 'Dark'],
+  ])
+    expect(screen.getByTestId(`settings-appearance-${option}`)).toHaveProp(
+      'accessibilityLabel',
+      label,
+    );
+  expect(screen.getByTestId('settings-sign-out')).toHaveProp('accessibilityLabel', 'Sign out');
+});

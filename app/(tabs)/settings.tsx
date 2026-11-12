@@ -28,21 +28,35 @@ export default function Settings() {
   }
   return (
     <SafeAreaView
+      testID="screen-settings"
       edges={['left', 'right']}
       className="flex-1"
       style={[{ backgroundColor: colors.background }]}
     >
       <ScrollView contentContainerClassName="p-6 gap-8">
         <Box className="gap-3">
-          <Text className="text-[13px]" style={[{ color: colors.muted }]}>
+          <Text
+            accessibilityRole="header"
+            className="text-[13px]"
+            style={[{ color: colors.muted }]}
+          >
             SERVER
           </Text>
-          <Text testID="settings-host" className="text-[17px]" style={[{ color: colors.text }]}>
+          <Text
+            testID="settings-host"
+            accessibilityLabel={`Server, ${host}`}
+            className="text-[17px]"
+            style={[{ color: colors.text }]}
+          >
             {host}
           </Text>
         </Box>
         <Box className="gap-3">
-          <Text className="text-[13px]" style={[{ color: colors.muted }]}>
+          <Text
+            accessibilityRole="header"
+            className="text-[13px]"
+            style={[{ color: colors.muted }]}
+          >
             APPEARANCE
           </Text>
           <ButtonGroup
@@ -65,15 +79,20 @@ export default function Settings() {
           </ButtonGroup>
         </Box>
         <Box className="gap-3">
-          <Text className="text-[13px]" style={[{ color: colors.muted }]}>
+          <Text
+            accessibilityRole="header"
+            className="text-[13px]"
+            style={[{ color: colors.muted }]}
+          >
             APP
           </Text>
           <Box className="flex-row justify-between gap-4">
-            <Text className="text-[17px]" style={[{ color: colors.text }]}>
+            <Text accessible={false} className="text-[17px]" style={[{ color: colors.text }]}>
               Version
             </Text>
             <Text
               testID="settings-version"
+              accessibilityLabel={`Version, ${Constants.expoConfig?.version ?? 'unknown'}`}
               className="text-[17px]"
               style={[{ color: colors.text }]}
             >

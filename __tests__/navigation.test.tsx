@@ -120,6 +120,24 @@ test.each(['light', 'dark'] as const)(
     jest.restoreAllMocks();
   },
 );
+test('each tab button is one accessible element found by its testID and opens its screen', async () => {
+  await render(app());
+  expect(screen.getByTestId('screen-runs')).toBeTruthy();
+  const labels = { runs: 'Runs', spend: 'Spend', infra: 'Infrastructure', settings: 'Settings' };
+  for (const [tab, label] of Object.entries(labels)) {
+    const button = screen.getByTestId(`tab-${tab}`);
+    expect(button).toHaveProp('accessible', true);
+    expect(button).toHaveProp('role', 'button');
+    expect(button).toHaveProp('accessibilityLabel', label);
+    // The label and icon sit inside the button, not as separate accessibility elements.
+    expect(screen.getByTestId(`tab-${tab}-label`)).toHaveProp('accessible', false);
+    expect(screen.getAllByTestId(`tab-${tab}-icon`)[0]).toHaveProp('accessible', false);
+  }
+  for (const tab of ['spend', 'infra', 'settings', 'runs']) {
+    await fireEvent.press(screen.getByTestId(`tab-${tab}`));
+    expect(screen.getByTestId(`screen-${tab}`)).toBeTruthy();
+  }
+});
 test('Settings confirmation supports Cancel and signs out to Connect on confirm', async () => {
   const alert = jest.spyOn(Alert, 'alert');
   const result = await render(app());
