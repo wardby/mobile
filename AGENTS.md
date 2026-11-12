@@ -67,6 +67,17 @@ Run the full `npm run export` locally (not just web) when the change:
 
 Every control has an accessible label. Every control a test touches has a `testID`.
 
+### testID naming
+
+Device checks find elements by `testID` (the iOS `accessibilityIdentifier`), so new UI follows this convention:
+
+- `screen-<name>`: the root view of every screen (`screen-connect`, `screen-runs`, `screen-run-detail`, `screen-spend`, `screen-infra`, `screen-settings`).
+- `tab-<name>`: tab bar buttons (`tab-runs`, `tab-spend`, `tab-infra`, `tab-settings`); their icon and label are not separate accessibility elements.
+- `<feature>-<control>`: controls and other elements, prefixed by the screen or feature (`connect-submit`, `runs-filter`, `settings-sign-out`).
+- `<thing>-row-<id>`: list rows, with `<id>` taken from the row's data, never its index (`run-row-<runId>`, `run-outcome-row-<id>`). Rows that predate this convention keep their data-derived ids (`run-step-<seq>`, `run-group-<key>`, `spend-agent-<agentId>`, `spend-issue-<key>`, `spend-budget-<groupId>`).
+
+Every tappable control also has an `accessibilityLabel` (and an `accessibilityRole` where one fits). Decorative icons are hidden from accessibility (`Icon` does this).
+
 ## API contract
 
 Run `npm run api:sync` to extract the viewer OpenAPI contract from the pinned

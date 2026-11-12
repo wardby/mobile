@@ -23,6 +23,8 @@ import {
 } from '../../src/infra/format';
 import { useInfra } from '../../src/infra/useInfra';
 
+// A row id from its label, e.g. "Run label hash" -> "run-label-hash".
+const rowId = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 function Header({ label }: { label: string }) {
   const colors = useColors();
   return (
@@ -102,7 +104,12 @@ function CodingKubernetesBlock({
   return (
     <Box testID="infra-coding-kubernetes" className="gap-3">
       {codingKubernetesRows(k8s).map((row) => (
-        <Row key={row.label} label={row.label} value={row.value} />
+        <Row
+          key={row.label}
+          label={row.label}
+          value={row.value}
+          testID={`infra-coding-kubernetes-row-${rowId(row.label)}`}
+        />
       ))}
       <LabelDisclosure
         testID="infra-coding-labels-toggle"
@@ -125,7 +132,12 @@ function NativeKubernetesBlock({
   return (
     <Box testID="infra-native-kubernetes" className="gap-3">
       {nativeKubernetesRows(k8s).map((row) => (
-        <Row key={row.label} label={row.label} value={row.value} />
+        <Row
+          key={row.label}
+          label={row.label}
+          value={row.value}
+          testID={`infra-native-kubernetes-row-${rowId(row.label)}`}
+        />
       ))}
       <LabelDisclosure
         testID="infra-native-labels-toggle"
@@ -147,6 +159,7 @@ export default function Infrastructure() {
   const muted = { color: colors.muted };
   return (
     <SafeAreaView
+      testID="screen-infra"
       edges={['left', 'right']}
       className="flex-1"
       style={{ backgroundColor: colors.background }}

@@ -138,6 +138,7 @@ export default function Spend() {
   const muted = { color: colors.muted };
   return (
     <SafeAreaView
+      testID="screen-spend"
       edges={['left', 'right']}
       className="flex-1"
       style={{ backgroundColor: colors.background }}

@@ -34,8 +34,10 @@ export default function TabsLayout() {
           );
         },
         tabBarLabel: ({ focused, color, children }) => (
+          // The tab button carries the label and testID; the text is not a separate element.
           <Text
             testID={`tab-${route.name === 'index' ? 'runs' : route.name}-label`}
+            accessible={false}
             allowFontScaling
             style={{
               color,

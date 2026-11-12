@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLiveGraph } from '../../src/live/useLiveGraph';
 import { useRunSteps } from '../../src/live/useRunSteps';
 import { requestOf } from '../../src/api/requestOf';
+import type { components } from '../../src/api/schema';
 import { useColors } from '../../src/navigation/styles';
 import { LiveIndicator } from '../../src/runs/LiveIndicator';
 import { MarkdownResult } from '../../src/runs/MarkdownResult';
@@ -27,6 +28,18 @@ import { useRunDetail } from '../../src/runs/useRunDetail';
 
 const stepsPage = 20;
 const requestPreviewLines = 6;
+
+type Outcome = components['schemas']['run-detail']['outcomes'][number];
+
+// A stable row id from the outcome itself, so it survives new outcomes arriving.
+const outcomeId = (outcome: Outcome) =>
+  outcome.kind === 'pull_request'
+    ? `pr-${outcome.repository}-${outcome.number}`
+    : outcome.kind === 'issue_comment'
+      ? `issue-comment-${outcome.issueKey}`
+      : outcome.kind === 'code_host_comment'
+        ? `comment-${outcome.repository}-${outcome.number}`
+        : `check-${outcome.repository}${outcome.number === null ? '' : `-${outcome.number}`}`;
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
@@ -86,6 +99,7 @@ function RunDetailContent({ id }: { id: string }) {
   if (!run || error)
     return (
       <SafeAreaView
+        testID="screen-run-detail"
         edges={['left', 'right', 'bottom']}
         className="flex-1 items-center justify-center gap-2 p-6"
         style={[{ backgroundColor: colors.background }]}
@@ -93,7 +107,7 @@ function RunDetailContent({ id }: { id: string }) {
         {header}
         {loading ? (
           <Box testID="run-detail-loading" className="items-center gap-4">
-            <Spinner />
+            <Spinner accessibilityLabel="Loading run" />
             <Text style={textStyle}>Loading run…</Text>
           </Box>
         ) : error?.code === 'not_found' ? (
@@ -143,6 +157,7 @@ function RunDetailContent({ id }: { id: string }) {
   const children = graph?.runs.filter((child) => child.parentRunId === id) ?? [];
   return (
     <SafeAreaView
+      testID="screen-run-detail"
       edges={['left', 'right', 'bottom']}
       className="flex-1"
       style={[{ backgroundColor: colors.background }]}
@@ -356,7 +371,7 @@ function RunDetailContent({ id }: { id: string }) {
                   ? `Pull request ${outcome.number}, ${outcome.state ?? 'unknown'}`
                   : label;
               const props = {
-                testID: `run-outcome-${index}`,
+                testID: `run-outcome-row-${outcomeId(outcome)}`,
                 accessible: true,
                 accessibilityLabel: `${accessibleLabel}${url ? ', opens in browser' : ''}`,
                 className: 'py-3',
