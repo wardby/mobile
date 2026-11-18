@@ -106,6 +106,7 @@
   "overrides": {
     "openapi-typescript": {
       "typescript": "$typescript"
-    }
+    },
+    "zod": "^4.6.7"
   }
 }
