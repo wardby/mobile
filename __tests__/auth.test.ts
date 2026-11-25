@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as AuthSession from 'expo-auth-session';
 import fixtures from './fixtures/oauth.json';
 import { discover, normalizeHost } from '../src/auth/discovery';
-import { register } from '../src/auth/register';
+import { clientRejected, register } from '../src/auth/register';
 import { AuthError } from '../src/auth/errors';
 import { act, renderHook } from '@testing-library/react-native';
 import { createSession, session, useSession } from '../src/auth/session';
@@ -20,6 +20,7 @@ jest.mock('expo-web-browser', () => ({ maybeCompleteAuthSession: jest.fn() }));
 jest.mock('expo-auth-session', () => ({
   AuthRequest: jest.fn().mockImplementation(() => ({
     codeVerifier: 'fake-verifier',
+    makeAuthUrlAsync: jest.fn(async () => 'https://server.example/authorize?probe'),
     promptAsync: jest.fn().mockResolvedValue({ type: 'success', params: { code: 'fake-code' } }),
   })),
   ResponseType: { Code: 'code' },
@@ -332,4 +333,84 @@ test('disabled sign-in error carries explicit operator setting', async () => {
   const c = await config();
   reply({ error: 'invalid_redirect_uri', error_description: 'mobile_disabled' }, 400);
   await expect(register(c)).rejects.toThrow('WARDBY_MOBILE_ENABLED=true');
+});
+
+function memoryStore(initial: Record<string, string> = {}) {
+  const stored = new Map(Object.entries(initial));
+  (SecureStore.getItemAsync as jest.Mock).mockImplementation(
+    async (key) => stored.get(key) ?? null,
+  );
+  (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (key, value) => {
+    stored.set(key, value);
+  });
+  (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async (key) => {
+    stored.delete(key);
+  });
+  return stored;
+}
+const clientKey = `wardby.client.${encodeURIComponent('https://server.example')}`;
+afterEach(() => {
+  (SecureStore.setItemAsync as jest.Mock).mockReset();
+  (SecureStore.deleteItemAsync as jest.Mock).mockReset();
+});
+
+test('a cached client the server no longer knows is replaced before the browser opens', async () => {
+  const stored = memoryStore({ [clientKey]: 'stale-client' });
+  const s = createSession();
+  reply(fixtures.resource);
+  reply(fixtures.metadata);
+  reply({ error: 'invalid_request' }, 400);
+  reply({ client_id: 'new-client' });
+  reply(fixtures.tokens);
+  await s.signIn('server.example');
+  expect(fetchMock.mock.calls[2][0]).toBe('https://server.example/authorize?probe');
+  expect(fetchMock.mock.calls[3][0]).toBe(fixtures.metadata.registration_endpoint);
+  expect(stored.get(clientKey)).toBe('new-client');
+  expect(AuthSession.AuthRequest).toHaveBeenLastCalledWith(
+    expect.objectContaining({ clientId: 'new-client' }),
+  );
+  expect(JSON.parse(stored.get('wardby.session')!)).toMatchObject({ clientId: 'new-client' });
+  const request = (AuthSession.AuthRequest as jest.Mock).mock.results.at(-1)!.value;
+  expect(request.promptAsync).toHaveBeenCalledWith(
+    { authorizationEndpoint: fixtures.metadata.authorization_endpoint },
+    { url: 'https://server.example/authorize?probe' },
+  );
+});
+test.each([
+  ['the server starts sign-in', () => reply({}, 303)],
+  ['the probe cannot reach the server', () => fetchMock.mockRejectedValueOnce(new Error())],
+])('a cached client is kept when %s', async (_name, probe) => {
+  const stored = memoryStore({ [clientKey]: 'cached-client' });
+  const s = createSession();
+  reply(fixtures.resource);
+  reply(fixtures.metadata);
+  probe();
+  reply(fixtures.tokens);
+  await s.signIn('server.example');
+  expect(fetchMock).toHaveBeenCalledTimes(4);
+  expect(stored.get(clientKey)).toBe('cached-client');
+  expect(JSON.parse(stored.get('wardby.session')!)).toMatchObject({ clientId: 'cached-client' });
+});
+test('a newly registered client is not probed', async () => {
+  await signedIn();
+  expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain(
+    'https://server.example/authorize?probe',
+  );
+});
+test.each([
+  [400, { error: 'invalid_request' }, true],
+  [400, { error: 'invalid_client' }, true],
+  [400, { error: 'invalid_scope' }, false],
+  [200, {}, false],
+])('clientRejected maps %s %j to %s', async (status, body, expected) => {
+  reply(body, status);
+  expect(await clientRejected('https://server.example/authorize')).toBe(expected);
+});
+test('clientRejected keeps the client when the error body is not JSON', async () => {
+  fetchMock.mockResolvedValueOnce({
+    ok: false,
+    status: 400,
+    json: jest.fn().mockRejectedValueOnce(new SyntaxError('Invalid JSON')),
+  });
+  expect(await clientRejected('https://server.example/authorize')).toBe(false);
 });

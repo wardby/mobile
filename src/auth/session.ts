@@ -6,7 +6,7 @@ import { redirectUri } from '../../app.identity';
 import { createApiClient } from '../api/client';
 import { discover, type AuthConfig } from './discovery';
 import { AuthError } from './errors';
-import { register } from './register';
+import { cachedClient, clientRejected, forgetClient, register } from './register';
 
 WebBrowser.maybeCompleteAuthSession();
 type Tokens = {
@@ -104,24 +104,34 @@ export function createSession() {
     tokens = next;
     update({ status: 'signedIn', host: next.host, error: null, ready: true });
   }
+  function authRequest(c: AuthConfig, clientId: string) {
+    return new AuthSession.AuthRequest({
+      clientId,
+      redirectUri: redirectUri(),
+      responseType: AuthSession.ResponseType.Code,
+      usePKCE: true,
+      scopes: ['admin:view', ...(c.scopes.includes('offline_access') ? ['offline_access'] : [])],
+      extraParams: { resource: c.resource },
+    });
+  }
   async function signIn(host: string) {
     await initialize();
     const current = ++generation;
     update({ status: 'signingIn', error: null });
     try {
       const c = await discover(host);
-      const clientId = await register(c);
-      const request = new AuthSession.AuthRequest({
-        clientId,
-        redirectUri: redirectUri(),
-        responseType: AuthSession.ResponseType.Code,
-        usePKCE: true,
-        scopes: ['admin:view', ...(c.scopes.includes('offline_access') ? ['offline_access'] : [])],
-        extraParams: { resource: c.resource },
-      });
-      const result = await request.promptAsync({
-        authorizationEndpoint: c.authorizationEndpoint,
-      });
+      const discovery = { authorizationEndpoint: c.authorizationEndpoint };
+      const wasCached = (await cachedClient(c)) !== null;
+      let clientId = await register(c);
+      let request = authRequest(c, clientId);
+      let url = await request.makeAuthUrlAsync(discovery);
+      if (wasCached && (await clientRejected(url))) {
+        await forgetClient(c);
+        clientId = await register(c);
+        request = authRequest(c, clientId);
+        url = await request.makeAuthUrlAsync(discovery);
+      }
+      const result = await request.promptAsync(discovery, { url });
       if (result.type === 'cancel' || result.type === 'dismiss') throw new AuthError('cancelled');
       if (result.type !== 'success' || !result.params.code || !request.codeVerifier)
         throw new AuthError('failed');
